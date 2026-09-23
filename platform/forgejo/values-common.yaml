@@ -1,0 +1,79 @@
+replicaCount: 1
+
+strategy:
+  type: Recreate
+
+image:
+  registry: code.forgejo.org
+  repository: forgejo/forgejo
+  tag: 15.0.9-rootless
+  rootless: true
+  pullPolicy: IfNotPresent
+
+persistence:
+  enabled: true
+
+service:
+  http:
+    type: ClusterIP
+  ssh:
+    type: ClusterIP
+
+ingress:
+  enabled: false
+
+gitea:
+  admin:
+    existingSecret: forgejo-admin
+    email: admin@platform.invalid
+    passwordMode: keepUpdated
+
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: false
+
+  additionalConfigFromEnvs:
+    - name: FORGEJO__DATABASE__PASSWD
+      valueFrom:
+        secretKeyRef:
+          name: forgejo-database
+          key: password
+
+  config:
+    server:
+      DISABLE_SSH: true
+      START_SSH_SERVER: false
+
+    database:
+      DB_TYPE: postgres
+      NAME: forgejo
+      USER: forgejo
+
+    session:
+      PROVIDER: db
+
+    cache:
+      ADAPTER: twoqueue
+      # Forgejo supports an integer object limit for TwoQueue.
+      # This is a local baseline, not a production sizing recommendation.
+      HOST: "50000"
+
+    queue:
+      TYPE: level
+
+    repository:
+      DISABLE_MIGRATIONS: true
+      DISABLED_REPO_UNITS: repo.wiki,repo.projects,repo.packages,repo.actions
+
+    actions:
+      ENABLED: false
+
+    packages:
+      ENABLED: false
+
+    mirror:
+      ENABLED: false
+
+    indexer:
+      REPO_INDEXER_ENABLED: false
