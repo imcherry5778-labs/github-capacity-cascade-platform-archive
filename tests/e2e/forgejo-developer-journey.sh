@@ -30,17 +30,42 @@ json_get() {
   python3 -c 'import json,sys; print(json.load(sys.stdin)[sys.argv[1]])' "$key"
 }
 
+base_url="http://127.0.0.1:$local_port"
+admin_username=""
+admin_token_name=""
+admin_token=""
+developer_username=""
+
 port_forward_log="$runtime_dir/e2e-port-forward.log"
 kubectl -n platform port-forward service/forgejo-http "$local_port:3000" >"$port_forward_log" 2>&1 &
 port_forward_pid=$!
 
-cleanup_port_forward() {
+cleanup() {
+  local exit_code=$?
+
+  if [[ -n "$admin_token" && -n "$developer_username" ]]; then
+    curl --fail --silent \
+      --header "Authorization: token $admin_token" \
+      --request DELETE \
+      "$base_url/api/v1/admin/users/$developer_username?purge=true" \
+      >/dev/null 2>&1 || true
+  fi
+
+  if [[ -n "$admin_token" && -n "$admin_username" && -n "$admin_token_name" ]]; then
+    curl --fail --silent \
+      --header "Authorization: token $admin_token" \
+      --request DELETE \
+      "$base_url/api/v1/admin/users/$admin_username/tokens/$admin_token_name" \
+      >/dev/null 2>&1 || true
+  fi
+
   kill "$port_forward_pid" >/dev/null 2>&1 || true
   wait "$port_forward_pid" >/dev/null 2>&1 || true
-}
-trap cleanup_port_forward EXIT
 
-base_url="http://127.0.0.1:$local_port"
+  exit "$exit_code"
+}
+trap cleanup EXIT
+
 healthy=false
 for _ in $(seq 1 30); do
   if curl -fsS "$base_url/api/healthz" >/dev/null; then
