@@ -137,6 +137,25 @@ git -C "$seed_dir" remote add origin "$repo_url"
 git -C "$seed_dir" push -u origin main >/dev/null
 echo "developer operation: git push main PASS"
 
+repo_non_empty=false
+for _ in $(seq 1 30); do
+  repo_state_response="$(curl --fail-with-body --silent --show-error \
+    --header "Authorization: token $developer_token" \
+    "$base_url/api/v1/repos/$developer_username/$repo_name")"
+
+  if [[ "$(printf '%s' "$repo_state_response" | json_get empty)" == "False" ]]; then
+    repo_non_empty=true
+    break
+  fi
+
+  sleep 1
+done
+
+if [[ "$repo_non_empty" != "true" ]]; then
+  echo "ERROR: Forgejo repository remained empty after initial Git push" >&2
+  exit 1
+fi
+
 curl --fail-with-body --silent --show-error \
   --header "Authorization: token $developer_token" \
   --header "Content-Type: application/json" \
@@ -148,6 +167,7 @@ curl --fail-with-body --silent --show-error \
 repo_state_response="$(curl --fail-with-body --silent --show-error \
   --header "Authorization: token $developer_token" \
   "$base_url/api/v1/repos/$developer_username/$repo_name")"
+[[ "$(printf '%s' "$repo_state_response" | json_get empty)" == "False" ]]
 [[ "$(printf '%s' "$repo_state_response" | json_get default_branch)" == "main" ]]
 [[ "$(printf '%s' "$repo_state_response" | json_get has_pull_requests)" == "True" ]]
 [[ "$(printf '%s' "$repo_state_response" | json_get has_issues)" == "True" ]]
