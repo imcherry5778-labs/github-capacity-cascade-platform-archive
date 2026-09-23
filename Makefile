@@ -1,4 +1,4 @@
-.PHONY: check-local-config local-up local-smoke local-down local-verify
+.PHONY: check-local-config local-up local-smoke local-e2e local-down local-verify
 
 check-local-config:
 	bash ./scripts/check-local-config.sh
@@ -8,6 +8,9 @@ local-up:
 
 local-smoke:
 	bash ./scripts/local-smoke.sh
+
+local-e2e:
+	bash ./tests/e2e/forgejo-developer-journey.sh
 
 local-down:
 	bash ./scripts/local-down.sh
