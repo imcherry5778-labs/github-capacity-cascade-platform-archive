@@ -150,7 +150,7 @@ Reliability experiment 전에 관련 정상 test가 통과해야 한다.
 - log/trace sampling rate
 - Forgejo exact patch/image digest
 - Azure AKS exact Kubernetes patch
-- Azure managed Istio exact revision (`asm-1-30` 이상 requirement는 유지)
+- Azure managed Istio exact revision (고정된 minimum을 가정하지 않고 region/AKS support + capability preflight 후 선택)
 
 필요한 baseline 또는 upstream 검증 후 결정한다.
 
