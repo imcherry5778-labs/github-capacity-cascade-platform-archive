@@ -169,7 +169,7 @@ Node SKU/count is not fixed until P3B calibration.
 
 Azure default: AKS managed Istio.
 
-The experiment uses `Sidecar.inboundConnectionPool`, so selected revision must be **`asm-1-30` or newer**.
+Selected Azure Istio revision must be **currently supported for the chosen AKS version/region** and must pass the capability preflight below. Do not derive a permanent minimum revision from `Sidecar.inboundConnectionPool`: that API already exists in upstream Istio 1.29. The exact managed revision is chosen at P3B preflight time.
 
 Exact revision is selected after region/AKS compatibility preflight, not guessed now.
 
@@ -337,7 +337,7 @@ The gate does not replace Forgejo authentication/authorization and does not rece
 
 ## P5.3 Capacity target
 
-Use upstream Istio 1.30+ locally.
+Use an upstream Istio minor aligned with the Azure candidate revision where practical. Pin the exact local version when P5 starts; do not hardcode a feature-derived minimum minor.
 
 The intentional bottleneck is ext-authz-sim Pod **inbound Envoy**, configured through `Sidecar.inboundConnectionPool.http.http2MaxRequests`.
 
@@ -393,7 +393,7 @@ DoD:
 Preflight selects and records:
 
 - supported AKS Kubernetes version
-- managed Istio revision, **asm-1-30+**
+- a currently supported managed Istio revision compatible with the selected AKS version/region
 - node SKU/quota
 - PostgreSQL SKU
 - managed observability dependencies
