@@ -165,12 +165,32 @@ git -C "$clone_dir" commit -m "add E2E feature" >/dev/null
 git -C "$clone_dir" push -u origin feature/e2e >/dev/null
 echo "developer operation: git push feature PASS"
 
-pr_response="$(curl --fail-with-body --silent --show-error \
+git ls-remote --heads "$repo_url" main feature/e2e >"$runtime_dir/git-refs.txt"
+grep -Fq "refs/heads/main" "$runtime_dir/git-refs.txt"
+grep -Fq "refs/heads/feature/e2e" "$runtime_dir/git-refs.txt"
+
+curl --fail-with-body --silent --show-error \
+  --header "Authorization: token $developer_token" \
+  "$base_url/api/v1/repos/$developer_username/$repo_name/pulls" \
+  >"$runtime_dir/pulls-before.json"
+
+pr_body_file="$runtime_dir/pr-create-response.json"
+pr_status="$(curl --silent --show-error \
+  --output "$pr_body_file" \
+  --write-out '%{http_code}' \
   --header "Authorization: token $developer_token" \
   --header "Content-Type: application/json" \
   --request POST \
   --data "{\"title\":\"E2E pull request\",\"head\":\"$developer_username:feature/e2e\",\"base\":\"main\",\"body\":\"Developer journey pull request\"}" \
   "$base_url/api/v1/repos/$developer_username/$repo_name/pulls")"
+
+if [[ "$pr_status" != "201" ]]; then
+  echo "ERROR: PR create returned HTTP $pr_status" >&2
+  cat "$pr_body_file" >&2 || true
+  exit 1
+fi
+
+pr_response="$(cat "$pr_body_file")"
 pr_number="$(printf '%s' "$pr_response" | json_get number)"
 
 pr_read_response="$(curl --fail-with-body --silent --show-error \
