@@ -20,3 +20,10 @@ local-verify:
 
 local-gitops-verify:
 	bash ./tests/infrastructure/argocd-reconciliation.sh
+
+.PHONY: terraform-check
+
+terraform-check:
+	terraform fmt -check -recursive infra/terraform
+	terraform -chdir=infra/terraform/bootstrap init -backend=false -lockfile=readonly
+	terraform -chdir=infra/terraform/bootstrap validate
