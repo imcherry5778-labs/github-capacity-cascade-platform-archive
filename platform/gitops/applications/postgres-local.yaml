@@ -1,0 +1,21 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: postgres-local
+  namespace: argocd
+spec:
+  project: capacity-platform
+  source:
+    repoURL: https://github.com/imcherry5778-labs/github-capacity-cascade-platform.git
+    targetRevision: main
+    path: platform/postgres
+    directory:
+      include: local.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: platform
+  syncPolicy:
+    automated:
+      enabled: true
+      prune: false
+      selfHeal: true
