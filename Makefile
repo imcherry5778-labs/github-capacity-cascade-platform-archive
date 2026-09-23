@@ -25,5 +25,8 @@ local-gitops-verify:
 
 terraform-check:
 	terraform fmt -check -recursive infra/terraform
-	terraform -chdir=infra/terraform/bootstrap init -backend=false -lockfile=readonly
-	terraform -chdir=infra/terraform/bootstrap validate
+	@for stack in bootstrap foundation; do \
+		echo "==> terraform $stack"; \
+		terraform -chdir=infra/terraform/$stack init -backend=false -lockfile=readonly; \
+		terraform -chdir=infra/terraform/$stack validate; \
+	done
