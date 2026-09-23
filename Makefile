@@ -1,4 +1,4 @@
-.PHONY: check-local-config local-up local-smoke local-e2e local-down local-verify
+.PHONY: check-local-config local-up local-smoke local-e2e local-down local-verify local-gitops-verify
 
 check-local-config:
 	bash ./scripts/check-local-config.sh
@@ -17,3 +17,6 @@ local-down:
 
 local-verify:
 	bash ./scripts/local-verify.sh
+
+local-gitops-verify:
+	bash ./tests/infrastructure/argocd-reconciliation.sh
