@@ -89,7 +89,7 @@ developer_token_response="$(curl --fail-with-body --silent --show-error \
   --user "$developer_username:$developer_password" \
   --header "Content-Type: application/json" \
   --request POST \
-  --data "{\"name\":\"$developer_token_name\",\"scopes\":[\"all\"]}" \
+  --data "{\"name\":\"$developer_token_name\",\"scopes\":[\"write:repository\",\"write:issue\"]}" \
   "$base_url/api/v1/users/$developer_username/tokens")"
 developer_token="$(printf '%s' "$developer_token_response" | json_get sha1)"
 
@@ -155,14 +155,6 @@ if [[ "$repo_non_empty" != "true" ]]; then
   echo "ERROR: Forgejo repository remained empty after initial Git push" >&2
   exit 1
 fi
-
-curl --fail-with-body --silent --show-error \
-  --header "Authorization: token $developer_token" \
-  --header "Content-Type: application/json" \
-  --request PATCH \
-  --data '{"default_branch":"main","has_pull_requests":true,"has_issues":true}' \
-  "$base_url/api/v1/repos/$developer_username/$repo_name" \
-  >/dev/null
 
 repo_state_response="$(curl --fail-with-body --silent --show-error \
   --header "Authorization: token $developer_token" \
