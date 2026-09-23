@@ -98,7 +98,7 @@ repo_response="$(curl --fail-with-body --silent --show-error \
   --header "Authorization: token $developer_token" \
   --header "Content-Type: application/json" \
   --request POST \
-  --data "{\"name\":\"$repo_name\",\"private\":true,\"auto_init\":false,\"description\":\"Developer journey E2E fixture\"}" \
+  --data "{\"name\":\"$repo_name\",\"private\":true,\"auto_init\":false,\"default_branch\":\"main\",\"description\":\"Developer journey E2E fixture\"}" \
   "$base_url/api/v1/user/repos")"
 created_repo_name="$(printf '%s' "$repo_response" | json_get name)"
 [[ "$created_repo_name" == "$repo_name" ]]
@@ -136,6 +136,11 @@ repo_url="$base_url/$developer_username/$repo_name.git"
 git -C "$seed_dir" remote add origin "$repo_url"
 git -C "$seed_dir" push -u origin main >/dev/null
 echo "developer operation: git push main PASS"
+
+repo_state_response="$(curl --fail-with-body --silent --show-error \
+  --header "Authorization: token $developer_token" \
+  "$base_url/api/v1/repos/$developer_username/$repo_name")"
+[[ "$(printf '%s' "$repo_state_response" | json_get default_branch)" == "main" ]]
 
 git clone "$repo_url" "$clone_dir" >/dev/null 2>&1
 git -C "$clone_dir" fetch origin main >/dev/null 2>&1
