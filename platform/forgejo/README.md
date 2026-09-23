@@ -70,3 +70,18 @@ make local-verify
 실패한 경우 Pod와 Kubernetes event를 출력한 뒤 cleanup을 시도한다.
 
 개발 중 cluster를 유지하려면 `make local-up` → `make local-smoke`를 사용하고 마지막에 `make local-down`을 실행한다.
+
+## Developer journey E2E
+
+`make local-e2e`는 실행 중인 local platform에서 Forgejo native authentication/authorization을 사용해 다음 developer operation을 검증한다.
+
+1. 일반 developer user와 private repository 생성
+2. Personal Access Token으로 `git push`
+3. authenticated `git clone` / `git fetch`
+4. feature branch push
+5. Pull Request create/read
+6. Issue create/read
+
+Git Smart HTTP의 개별 request 수를 developer operation 수와 동일하게 취급하지 않는다. 이 E2E의 목적은 정상 platform에서 상위 developer journey가 성공하는지 확인하는 것이다.
+
+`make local-verify`는 fresh cluster에서 smoke 후 이 E2E까지 실행하고 cleanup한다.
