@@ -61,7 +61,10 @@ export KUBECONFIG="$kubeconfig_path"
 kubectl create namespace argocd
 kubectl apply -n argocd --server-side --force-conflicts \
   -f "https://raw.githubusercontent.com/argoproj/argo-cd/$ARGOCD_COMMIT/manifests/core-install.yaml"
-kubectl -n argocd wait --for=condition=Ready pod --all --timeout=300s
+kubectl -n argocd rollout status statefulset/argocd-application-controller --timeout=300s
+for deployment in argocd-applicationset-controller argocd-redis argocd-repo-server; do
+  kubectl -n argocd rollout status "deployment/$deployment" --timeout=300s
+done
 
 kubectl apply -f platform/gitops/project.yaml
 sed "s/__TARGET_REVISION__/$target_revision/g" \
