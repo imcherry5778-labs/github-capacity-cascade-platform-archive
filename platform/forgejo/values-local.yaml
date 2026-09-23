@@ -1,0 +1,12 @@
+persistence:
+  storageClass: local-path
+
+gitea:
+  config:
+    server:
+      DOMAIN: 127.0.0.1
+      ROOT_URL: http://127.0.0.1:3000/
+
+    database:
+      HOST: postgres.platform.svc.cluster.local:5432
+      SSL_MODE: disable
