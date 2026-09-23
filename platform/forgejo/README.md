@@ -48,3 +48,25 @@ Local runtime script가 disposable credential을 생성한다. Secret 값은 Git
 `values-local.yaml`에는 local PostgreSQL address, local URL, local storage class처럼 환경 차이만 둔다.
 
 Azure values는 Azure 구현 단계에서 실제 dependency가 생길 때 추가한다.
+
+## Local runtime 확인
+
+Fresh local lifecycle 전체를 확인하려면:
+
+```bash
+make local-verify
+```
+
+이 명령은 다음 순서로 동작한다.
+
+1. k3d cluster 생성
+2. 기본 kubeconfig를 수정하지 않는 별도 local kubeconfig 생성
+3. disposable database/admin Secret 생성
+4. PostgreSQL 배포와 readiness 확인
+5. Forgejo Helm release 배포
+6. `/api/healthz`와 `/api/v1/version` smoke
+7. local cluster 삭제
+
+실패한 경우 Pod와 Kubernetes event를 출력한 뒤 cleanup을 시도한다.
+
+개발 중 cluster를 유지하려면 `make local-up` → `make local-smoke`를 사용하고 마지막에 `make local-down`을 실행한다.
