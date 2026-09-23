@@ -196,9 +196,17 @@ Azure default: AKS managed provider + Workload Identity.
 
 Install only when TLS work starts.
 
-- controller: explicit bootstrap
-- namespaced Issuer/Certificate preferred
-- ClusterIssuer only if a real need appears
+- controller: explicit cluster bootstrap
+- Azure DNS DNS-01 authentication: Workload Identity
+- issuer: ACME `ClusterIssuer`
+- ingress `Certificate`: `aks-istio-ingress` namespace
+- resulting TLS Secret name must match Istio `Gateway.spec.servers[].tls.credentialName`
+
+AKS managed Istio ingress reads the TLS credential from the ingress gateway namespace. Therefore ingress certificate lifecycle is **not** placed under the Argo `platform` AppProject.
+
+Core does not add a Key Vault certificate automation pipeline for public ingress TLS. Key Vault remains the persistent application-secret boundary; cert-manager owns the renewable ingress TLS Secret.
+
+Microsoft's managed-Istio secure-gateway example uses Key Vault CSI to create the same gateway TLS Secret in `aks-istio-ingress`. Our cert-manager path is therefore a **project implementation choice**, not an Azure product requirement. P3B preflight must prove that the cert-manager-generated Secret is accepted by the selected managed ingress revision. If this fails, fall back to the documented Key Vault CSI gateway-credential path rather than widening Argo ownership or adding a custom ingress controller.
 
 ---
 
@@ -206,16 +214,17 @@ Install only when TLS work starts.
 
 **Goal:** define how normal developer experience is measured and recovered before introducing faults.
 
-## P4A.1 developer-probe
+## P4A.1 Structured developer probe
 
-Start with **one Go CLI**, not separate probe/load-generator binaries.
+새 binary를 먼저 만들지 않는다. 현재 E2E에서 이미 검증된 **Git CLI + curl/Forgejo API** 경로를 재사용해 structured probe를 먼저 만든다.
 
 Responsibilities:
 
-- single developer operation
-- repeated controlled operation
-- bounded retry modes
-- machine-readable result
+- single developer operation 실행
+- machine-readable JSONL/summary output
+- end-to-end duration과 success/failure 기록
+- 동일한 pre-created user/PAT/repository를 반복 사용
+- correctness fixture 생성용 admin API를 measured path에서 제외
 
 Core operations:
 
@@ -239,8 +248,11 @@ Rules:
 - developer operation != HTTP request
 - operation id is not a Prometheus label
 - metrics use low-cardinality operation/outcome labels
+- active measurement does not create/delete users on every operation
 
-Active measurement uses a pre-created probe user/PAT/repository. Admin bootstrap APIs are not part of measured operations.
+Bulk/retry traffic generation은 **k6**를 우선 사용한다. k6 scenario에서 logical operation과 client request attempt를 별도 counter로 기록한다.
+
+별도 Go `developer-probe` binary는 shell/curl/Git CLI 구조로 측정 정확도나 동시성 요구를 만족할 수 없다는 실제 문제가 확인될 때만 도입한다. Core에서 직접 개발하는 필수 server-side binary는 `ext-authz-sim` 하나로 유지한다.
 
 ## P4A.2 Instrumentation contract
 
@@ -327,7 +339,9 @@ The gate does not replace Forgejo authentication/authorization and does not rece
 
 Use upstream Istio 1.30+ locally.
 
-The intentional bottleneck is ext-authz-sim Pod **inbound Envoy**, configured through `Sidecar.inboundConnectionPool`.
+The intentional bottleneck is ext-authz-sim Pod **inbound Envoy**, configured through `Sidecar.inboundConnectionPool.http.http2MaxRequests`.
+
+Despite the field name, Istio defines `http2MaxRequests` as the maximum number of active requests for both HTTP/1.1 and HTTP/2. The expected Envoy overflow counter is `upstream_rq_active_overflow`; selected local/Azure revisions must verify this mapping before evidence promotion.
 
 Compare:
 
@@ -407,9 +421,17 @@ Terraform creates static public IP.
 
 Managed ingress Deployment/Service remains AKS-owned.
 
-Explicit bootstrap applies only supported Azure Load Balancer annotations needed to bind the managed gateway to the static IP.
+Explicit bootstrap:
 
-Argo manages namespaced routing objects, not the managed gateway Deployment.
+- applies only supported Azure Load Balancer annotations needed to bind the managed gateway to the static IP
+- installs/configures cert-manager when TLS work starts
+- creates Azure DNS Workload Identity binding for cert-manager
+- creates ACME `ClusterIssuer`
+- creates the ingress `Certificate` in `aks-istio-ingress`
+
+Argo manages `Gateway` / `VirtualService` routing objects, not the managed gateway Deployment or ingress TLS credential lifecycle.
+
+The Istio `Gateway` `credentialName` must match the TLS Secret generated in `aks-istio-ingress`.
 
 ## Calibration cleanup
 
@@ -423,6 +445,8 @@ After sizing/compatibility work:
 - runtime/cost record
 
 Foundation/bootstrap may intentionally remain for later sessions.
+
+Paid `environment` resources are **same-day by default** and must be destroyed after the working/evidence session. A paid environment must not remain for more than **24 hours** unless the user explicitly approves an extension.
 
 ---
 
@@ -609,6 +633,14 @@ A successful `terraform destroy` alone is not “zero residual”.
 | 5 | Project finalization | explicit |
 
 Gate 1+ 실행 전 current pricing/resource estimate를 갱신한다.
+
+Paid environment policy:
+
+- environment runtime is same-day by default
+- after a calibration/demo/evidence session, environment destroy is the expected next action
+- an environment may remain up to 24 hours only to finish the same approved work
+- staying beyond 24 hours requires a new explicit approval
+- bootstrap/foundation can remain intentionally because their cost/lifecycle is evaluated separately
 
 ---
 

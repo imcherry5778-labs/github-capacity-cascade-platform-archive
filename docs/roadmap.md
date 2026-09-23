@@ -99,8 +99,9 @@
 
 정상 서비스를 측정하고 복구하는 계약을 local에서 먼저 만든다.
 
-- Go `developer-probe`
-- operation/attempt measurement schema
+- existing Git CLI/curl path를 재사용하는 structured developer probe
+- machine-readable operation/attempt measurement schema
+- bulk/retry load용 k6
 - low-cardinality metrics
 - structured logs / correlation
 - Service Active Window 정의
@@ -148,10 +149,13 @@ Local contract가 안정된 뒤 처음 Azure environment를 실제 생성한다.
 - AKS + private PostgreSQL
 - managed Istio / KEDA / Key Vault CSI
 - Argo bootstrap
-- HTTPS / DNS / TLS
+- cert-manager + Azure DNS Workload Identity + ClusterIssuer
+- ingress Certificate/TLS Secret in `aks-istio-ingress`
+- HTTPS / DNS
 - Azure developer E2E
 - resource sizing/headroom calibration
 - actual runtime/cost
+- same-day destroy by default; >24h requires renewed approval
 - destroy/residual inventory
 
 Managed Istio selected revision은 `asm-1-30` 이상이어야 하며 region/AKS compatibility를 실제 preflight에서 확인한다.
