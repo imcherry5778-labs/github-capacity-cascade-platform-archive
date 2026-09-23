@@ -27,6 +27,7 @@
 | Istio | AKS managed add-on, 1.30+ required | 조직 mesh support policy와 revision lifecycle |
 | ext_authz provider | LAB_IMPLEMENTATION | 실제 authorization architecture |
 | Public demo | short-lived | continuous hardening / abuse protection |
+| Paid environment lifetime | same-day, max 24h without renewed approval | continuous capacity/cost management |
 
 ---
 
@@ -184,6 +185,28 @@ Core baseline:
 - Key Vault
 - Secrets Store CSI
 - scoped RBAC
+
+### Ingress TLS credential
+
+Public ingress TLS and persistent Forgejo application secrets have different lifecycles.
+
+Core ingress TLS:
+
+```text
+cert-manager
+→ ACME DNS-01
+→ Azure DNS via Workload Identity
+→ ClusterIssuer
+→ Certificate in aks-istio-ingress
+→ renewable Kubernetes TLS Secret
+→ managed Istio ingress gateway
+```
+
+AKS managed Istio expects the ingress credential Secret in `aks-istio-ingress`. Therefore this Certificate/Secret lifecycle is explicit cluster bootstrap scope, not the Argo `platform` AppProject.
+
+Core does not introduce a separate ACME-to-Key-Vault certificate synchronization pipeline merely to put the public certificate in Key Vault.
+
+Persistent Forgejo cryptographic/database secret material remains a Key Vault + Workload Identity + CSI concern.
 
 ### Key Vault network
 
