@@ -1,13 +1,13 @@
 variable "location" {
-  description = "Azure region for the Terraform state resource group and storage account."
+  description = "Azure region for bootstrap resources."
   type        = string
   default     = "koreacentral"
 }
 
 variable "resource_group_name" {
-  description = "Resource group dedicated to Terraform state bootstrap resources."
+  description = "Resource group dedicated to Terraform bootstrap resources."
   type        = string
-  default     = "rg-github-capacity-cascade-platform-tfstate"
+  default     = "rg-github-capacity-cascade-platform-bootstrap"
 }
 
 variable "storage_account_name" {
@@ -29,6 +29,18 @@ variable "container_name" {
     condition     = can(regex("^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])?$", var.container_name))
     error_message = "container_name must be a valid lowercase Azure blob container name with 3-63 characters."
   }
+}
+
+variable "deployment_identity_name" {
+  description = "User-assigned managed identity used by approved GitHub Actions Azure workflows."
+  type        = string
+  default     = "id-github-capacity-cascade-platform-deploy"
+}
+
+variable "github_oidc_subject" {
+  description = "Immutable GitHub OIDC subject restricted to this repository and the azure-demo environment."
+  type        = string
+  default     = "repo:imcherry5778-labs@273613742/github-capacity-cascade-platform@1377253823:environment:azure-demo"
 }
 
 variable "tags" {
