@@ -16,8 +16,6 @@ require_command() {
 }
 
 require_command helm
-require_command kubectl
-
 actual_helm_version="$(helm version --template '{{.Version}}')"
 if [[ "$actual_helm_version" != "$HELM_VERSION" ]]; then
   echo "ERROR: Helm version mismatch: expected $HELM_VERSION, got $actual_helm_version" >&2
@@ -28,12 +26,13 @@ grep -Fq "image: $K3S_IMAGE" platform/local/k3d.yaml
 grep -Fq "tag: ${FORGEJO_IMAGE_TAG}" platform/forgejo/values-common.yaml
 grep -Fq "image: ${POSTGRES_IMAGE}" platform/postgres/local.yaml
 
-kubectl apply \
-  --dry-run=client \
-  --validate=false \
-  -f platform/postgres/local.yaml \
-  >/dev/null
-
+grep -Fq "kind: Service" platform/postgres/local.yaml
+grep -Fq "kind: StatefulSet" platform/postgres/local.yaml
+grep -Fq "secretKeyRef:" platform/postgres/local.yaml
+if grep -Eq '^[[:space:]]*POSTGRES_PASSWORD:[[:space:]]+[^$]' platform/postgres/local.yaml; then
+  echo "ERROR: literal PostgreSQL password detected" >&2
+  exit 1
+fi
 tmp_render="$(mktemp)"
 trap 'rm -f "$tmp_render"' EXIT
 
