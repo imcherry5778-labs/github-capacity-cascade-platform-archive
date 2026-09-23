@@ -10,6 +10,7 @@ on:
       - "Makefile"
       - "platform/**"
       - "scripts/check-local-config.sh"
+      - "scripts/check-version-inventory.sh"
       - "scripts/local-*.sh"
       - "tests/e2e/**"
       - "tests/infrastructure/**"
