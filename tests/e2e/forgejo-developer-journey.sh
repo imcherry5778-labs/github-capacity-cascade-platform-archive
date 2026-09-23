@@ -137,10 +137,20 @@ git -C "$seed_dir" remote add origin "$repo_url"
 git -C "$seed_dir" push -u origin main >/dev/null
 echo "developer operation: git push main PASS"
 
+curl --fail-with-body --silent --show-error \
+  --header "Authorization: token $developer_token" \
+  --header "Content-Type: application/json" \
+  --request PATCH \
+  --data '{"default_branch":"main","has_pull_requests":true,"has_issues":true}' \
+  "$base_url/api/v1/repos/$developer_username/$repo_name" \
+  >/dev/null
+
 repo_state_response="$(curl --fail-with-body --silent --show-error \
   --header "Authorization: token $developer_token" \
   "$base_url/api/v1/repos/$developer_username/$repo_name")"
 [[ "$(printf '%s' "$repo_state_response" | json_get default_branch)" == "main" ]]
+[[ "$(printf '%s' "$repo_state_response" | json_get has_pull_requests)" == "True" ]]
+[[ "$(printf '%s' "$repo_state_response" | json_get has_issues)" == "True" ]]
 
 git clone "$repo_url" "$clone_dir" >/dev/null 2>&1
 git -C "$clone_dir" fetch origin main >/dev/null 2>&1
