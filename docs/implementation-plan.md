@@ -206,6 +206,8 @@ AKS managed Istio ingress reads the TLS credential from the ingress gateway name
 
 Core does not add a Key Vault certificate automation pipeline for public ingress TLS. Key Vault remains the persistent application-secret boundary; cert-manager owns the renewable ingress TLS Secret.
 
+Microsoft's managed-Istio secure-gateway example uses Key Vault CSI to create the same gateway TLS Secret in `aks-istio-ingress`. Our cert-manager path is therefore a **project implementation choice**, not an Azure product requirement. P3B preflight must prove that the cert-manager-generated Secret is accepted by the selected managed ingress revision. If this fails, fall back to the documented Key Vault CSI gateway-credential path rather than widening Argo ownership or adding a custom ingress controller.
+
 ---
 
 # 5. P4A — Local operations/measurement
