@@ -821,3 +821,39 @@ Lifecycle이 중요한 PR은 가능한 한 다음을 명시한다.
 - Kafka/RabbitMQ/Service Bus
 - complex priority scheduler
 - always-on public demo
+
+
+---
+
+# 14. 구현 직전 다시 확인할 upstream contract
+
+마지막 검토: **2026-09-24**
+
+Cloud/add-on 지원 범위와 release lifecycle은 바뀔 수 있다. 아래 내용은 실제 해당 work unit을 구현하거나 Azure Gate를 열기 직전에 다시 확인한다.
+
+- Terraform Azure Blob backend / OIDC / Entra ID  
+  https://developer.hashicorp.com/terraform/language/backend/azurerm
+- AKS Istio add-on overview / limitations  
+  https://learn.microsoft.com/azure/aks/istio-about
+- AKS Istio revision/support policy  
+  https://learn.microsoft.com/azure/aks/istio-support-policy
+- AKS Istio MeshConfig allowlist, 특히 `extensionProviders`  
+  https://learn.microsoft.com/azure/aks/istio-meshconfig
+- AKS Istio deployment/revision selection  
+  https://learn.microsoft.com/azure/aks/istio-deploy-addon
+- AKS managed Istio secure ingress credential namespace/contract  
+  https://learn.microsoft.com/azure/aks/istio-secure-gateway
+- AKS managed KEDA  
+  https://learn.microsoft.com/azure/aks/keda-about
+- KEDA + Workload Identity  
+  https://learn.microsoft.com/azure/aks/keda-workload-identity
+- Upstream Istio `Sidecar.inboundConnectionPool`  
+  https://istio.io/latest/docs/reference/config/networking/sidecar/
+- Argo CD Core / installation mode  
+  https://argo-cd.readthedocs.io/en/stable/operator-manual/installation/
+- Argo CD automated sync / self-heal  
+  https://argo-cd.readthedocs.io/en/stable/user-guide/auto_sync/
+- Forgejo v15 configuration contract  
+  https://forgejo.org/docs/v15.0/admin/config-cheat-sheet/
+
+문서가 바뀌어 현재 명세와 충돌하면 코드를 억지로 맞추지 않고 해당 architecture decision을 먼저 수정한다.
