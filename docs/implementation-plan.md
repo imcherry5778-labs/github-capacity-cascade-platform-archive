@@ -240,12 +240,14 @@ Bootstrap owns:
 
 CI identity 기본 boundary:
 
-- state storage의 Blob state read/write
-- foundation RG resource 관리
-- environment RG resource 관리
-- 위 RG 안에서 필요한 role assignment 관리
+- state blob container scope: `Storage Blob Data Contributor`
+- foundation RG scope: `Contributor`
+- environment RG scope: `Contributor`
+- foundation/environment RG scope: role assignment 생성/삭제에 필요한 `Role Based Access Control Administrator`
 
-Subscription-wide Owner/Contributor는 기본값으로 사용하지 않는다.
+`Role Based Access Control Administrator`는 privileged role이므로 project-owned RG 밖으로 scope를 넓히지 않는다. CI가 어떤 workload identity에 어떤 built-in role을 부여하는지 P3A-06 preflight에서 inventory로 고정한다. 필요성이 확인되기 전에는 custom role이나 complex RBAC condition을 추가하지 않는다.
+
+Subscription-wide Owner/Contributor/User Access Administrator는 기본값으로 사용하지 않는다.
 
 Bootstrap과 project finalization은 local operator의 Azure CLI/Entra authentication을 기본으로 한다.
 
