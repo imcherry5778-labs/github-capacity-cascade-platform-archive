@@ -6,6 +6,9 @@ servers: 1
 agents: 0
 image: rancher/k3s:v1.35.8-k3s1
 options:
+  kubeconfig:
+    updateDefaultKubeconfig: false
+    switchCurrentContext: false
   k3s:
     extraArgs:
       - arg: --disable=traefik
