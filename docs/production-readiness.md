@@ -24,7 +24,7 @@
 | Terraform state endpoint | public endpoint + Entra ID auth | private endpoint / self-hosted runner |
 | Key Vault network | RBAC 중심, private endpoint는 Core 아님 | private endpoint/firewall |
 | Key Vault purge protection | Core에서 off | stronger deletion protection |
-| Istio | AKS managed add-on, 1.30+ required | 조직 mesh support policy와 revision lifecycle |
+| Istio | AKS managed add-on, preflight에서 supported revision 선택 | 조직 mesh support policy와 revision lifecycle |
 | ext_authz provider | LAB_IMPLEMENTATION | 실제 authorization architecture |
 | Public demo | short-lived | continuous hardening / abuse protection |
 | Paid environment lifetime | same-day, max 24h without renewed approval | continuous capacity/cost management |
@@ -133,9 +133,7 @@ Azure에서는 AKS managed Istio add-on을 우선한다.
 
 ### Required capability
 
-Reliability fixture의 `Sidecar.inboundConnectionPool`은 Istio 1.30+가 필요하다.
-
-따라서 Azure selected revision은 `asm-1-30` 이상이어야 하며 실제 region/AKS support preflight에서 확인한다.
+Reliability fixture는 `Sidecar.inboundConnectionPool`을 사용한다. 이 API 존재 여부를 이유로 특정 ASM revision floor를 만들지 않는다. Azure selected revision은 실제 region/AKS support와 required capability preflight를 통과해야 한다.
 
 ### Support boundary
 

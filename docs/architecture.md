@@ -20,7 +20,7 @@ flowchart TB
     subgraph AZ["Azure"]
         subgraph MANAGED["Azure / AKS managed lifecycle"]
             AKS["AKS"]
-            MESH["AKS managed Istio 1.30+"]
+            MESH["AKS managed Istio\nselected supported revision"]
             MIGW["Managed Istio ingress gateway"]
             MKEDA["AKS managed KEDA"]
             CSI["AKS Key Vault CSI add-on"]
@@ -265,11 +265,11 @@ Azure Core는 AKS managed Istio add-on을 우선한다.
 
 Reliability experiment는 `Sidecar.inboundConnectionPool`을 사용한다.
 
-이 API는 Istio 1.30+가 필요하므로 selected Azure managed revision은 **`asm-1-30` 이상**이어야 한다.
+Selected Azure managed revision은 chosen AKS version/region에서 현재 지원 중이어야 하며, `Sidecar.inboundConnectionPool`과 필요한 ext_authz configuration이 실제 admission/runtime에서 동작하는지 preflight로 확인한다. `inboundConnectionPool` 자체를 특정 revision floor의 근거로 사용하지 않는다.
 
 Exact revision은 region/AKS support preflight 후 고정한다.
 
-Local reliability work도 가능한 한 같은 Istio minor(1.30+)를 사용한다.
+Local reliability work도 가능한 한 Azure candidate와 같은 Istio minor를 사용하고 exact patch를 pin한다.
 
 ### Managed ingress ownership
 
@@ -347,7 +347,7 @@ Check request에는 필요한 metadata만 사용하며 Git push body 전체를 c
 
 의도적으로 포화시키는 target은 **ext-authz-sim Pod의 inbound Envoy sidecar**다.
 
-Istio 1.30+ `Sidecar.inboundConnectionPool.http.http2MaxRequests`를 사용한다. 이 필드는 이름과 달리 HTTP/1.1과 HTTP/2 모두에 적용되는 최대 active request 수다. 예상되는 Envoy rejection 신호는 `upstream_rq_active_overflow`이며, 실제 selected revision에서 preflight로 확인한다.
+`Sidecar.inboundConnectionPool.http.http2MaxRequests`를 사용한다. 이 필드는 이름과 달리 HTTP/1.1과 HTTP/2 모두에 적용되는 최대 active request 수다. 예상되는 Envoy rejection 신호는 `upstream_rq_active_overflow`이며, 실제 selected revision에서 preflight로 확인한다.
 
 ```text
 application CPU may remain low

@@ -50,7 +50,145 @@ PAYG Azure를 상시 개발 환경으로 사용하지 않는다.
 
 ---
 
-## 3. P0~P2 완료 계약
+### 2.1 Target repository map
+
+아래 구조는 **최종 책임 경계**다. 지금 빈 디렉터리를 미리 만들라는 뜻이 아니다. 해당 capability를 구현하는 PR에서 실제 파일이 생길 때만 경로를 만든다.
+
+```text
+cmd/
+└── ext-authz-sim/              # Core의 유일한 필수 custom server binary
+
+internal/
+└── ext-authz/                  # ext-authz protocol / fault / metrics logic
+
+infra/
+└── terraform/
+    ├── bootstrap/              # state + CI identity + scoped RG/RBAC
+    ├── foundation/             # DNS / Key Vault / long-lived shared state
+    └── environment/            # AKS / DB / network / observability / paid runtime
+
+platform/
+├── local/                      # k3d와 local-only substitutes
+├── forgejo/                    # common + environment-specific Forgejo source
+├── gitops/                     # Argo AppProject/Application source
+├── ingress/                    # stable Istio routing objects
+└── telemetry/                  # collection/export configuration
+
+operations/
+├── slo/
+├── alerts/
+├── dashboards/
+├── runbooks/
+└── cost/
+
+tests/
+├── integration/
+├── e2e/
+├── infrastructure/
+├── recovery/
+└── upgrade/
+
+experiments/
+├── fixtures/
+│   └── shared-gate/
+├── scenarios/
+└── load/
+
+results/
+└── evidence/                   # reviewed/published evidence only
+
+docs/
+├── adr/                        # 실제 trade-off가 생겼을 때만 생성
+└── incidents/                  # 실제 incident experiment 이후
+```
+
+Structured developer measurement는 먼저 shell/Git CLI/curl harness로 구현한다. 측정 정확도나 concurrency 요구 때문에 실제 필요가 확인되기 전에는 별도 `developer-probe` Go binary를 만들지 않는다.
+
+## 2.2 Work-unit dependency
+
+인접 unit은 diff가 작고 acceptance가 동일할 때만 하나의 PR로 합칠 수 있다. 표의 dependency를 건너뛰어 뒤 capability부터 구현하지 않는다.
+
+| Unit | 선행 조건 | 핵심 결과 | Azure side effect |
+| --- | --- | --- | --- |
+| P3A-01 Bootstrap final | P2 | state backend + GitHub OIDC identity + scoped RG/RBAC source | 없음 |
+| P3A-02 Foundation final | P3A-01 | delegated DNS zone + Key Vault source | 없음 |
+| P3A-03 Environment network/data | P3A-01 | VNet/subnet + private PostgreSQL + storage/ACR source | 없음 |
+| P3A-04 AKS managed capabilities | P3A-03 | AKS + managed Istio/KEDA/Key Vault CSI source | 없음 |
+| P3A-05 Azure platform source | P3A-02,04 | Azure Forgejo values + ingress/bootstrap/identity manifests | 없음 |
+| P3A-06 Apply/destroy preflight | P3A-05 | resource/RBAC/cost inventory + runbook | 없음 |
+| P4A-01 Measurement contract | P2 | structured developer operation/attempt output | 없음 |
+| P4A-02 Recovery contract | P4A-01 | session + backup/restore + upgrade/rollback local verification | 없음 |
+| P5-01 ext-authz-sim | P4A-01 | minimal ext_authz server + metrics/fault control | 없음 |
+| P5-02 Healthy shared gate | P5-01 | normal request path에 추가/제거 가능한 gate | 없음 |
+| P5-03 Saturation/retry | P5-02 | inbound Envoy saturation + attempt amplification | 없음 |
+| P3B-01 Bootstrap/foundation apply | P3A-06, P5-03 | real Azure state/OIDC/foundation proof | **명시적 승인** |
+| P3B-02 Calibration environment | P3B-01 | AKS/DB/HTTPS/E2E/headroom proof | **명시적 승인** |
+| P4B | P3B-02, P4A | managed observability + SLO/recovery proof | **명시적 승인** |
+| P6 | P4B, P5 | controlled cascade evidence | **명시적 승인** |
+| P7 | P6 | mitigation/recovery comparison | **명시적 승인** |
+| P8 | P7 | critical/bulk isolation comparison | **명시적 승인** |
+| P9 | P8 | regression gate + final repetitions/evidence/finalization | 일부 **명시적 승인** |
+
+### P3A dependency note
+
+Bootstrap이 foundation/environment Resource Group과 CI identity의 권한 boundary를 먼저 만든다. 따라서 foundation stack이 자기 Resource Group을 별도로 생성하는 구조는 사용하지 않는다.
+
+현재 draft PR #9의 foundation source는 이 dependency에 맞게 **P3A-01 완료 후 수정**해야 하며, 그 전에는 merge하지 않는다.
+
+## 2.3 현재 구현 감사 결과
+
+2026-09-24 기준으로 현재 `main`의 executable/configuration surface를 upstream contract와 대조했다.
+
+### 유지
+
+- Forgejo single replica + `Recreate`
+- rootless Forgejo v15 LTS exact patch baseline
+- external PostgreSQL / DB-backed session / bounded `twoqueue` / persistent `level` queue
+- normal developer E2E와 reliability experiment 분리
+- Argo exact PR head revision + auto-sync/self-heal + prune off
+- local fast loop와 GitOps integration loop 분리
+- Terraform bootstrap local-state exception + remote-state target
+- full-SHA pinned GitHub Actions
+- local-only PostgreSQL substitute를 `platform/local/`에 격리
+- `versions.env`와 실제 source pin의 consistency check
+
+### 이미 수정한 문제
+
+- test가 PR/Issue repository unit을 PATCH로 보정하던 구조 제거
+- developer PAT를 measured path에 필요한 repository/issue scope로 축소
+- GitOps job이 merge-ref를 실행하면서 Argo는 head SHA를 reconcile할 수 있던 revision mismatch 제거
+- E2E fixture cleanup 추가
+- local HTTP port-forward와 Azure HTTPS contract 구분
+- misleading secret grep 제거
+
+### 아직 검증되지 않은 것
+
+다음은 문서상 결정이지 runtime proof가 아니다.
+
+- Azure Terraform actual plan/apply
+- GitHub OIDC와 scoped Azure RBAC
+- Key Vault CSI / Workload Identity
+- managed Istio ext_authz + `Sidecar.inboundConnectionPool`
+- managed KEDA → Managed Prometheus scaler
+- public DNS/TLS
+- Azure PostgreSQL/private networking
+- Forgejo session continuity
+- coordinated restore
+- state-aware rollback
+- Developer SLO threshold
+- final resource sizing/cost
+
+이 항목은 해당 work unit이 실제 acceptance를 통과하기 전에는 README에서 완료된 capability처럼 표현하지 않는다.
+
+### 의도적으로 지금 고치지 않는 것
+
+- Forgejo container image digest를 source에 즉시 고정: final/evidence runtime에서는 digest를 반드시 기록하지만, 현재 local correctness 단계에서 tag + chart pin은 유지한다.
+- Argo CD controller의 cluster-level RBAC를 자체 재설계: single-operator ephemeral Core의 production-readiness deviation으로 명시하고, AppProject/ownership을 좁게 유지한다.
+- shell E2E를 바로 Go service로 재작성: correctness test는 충분히 동작하므로 P4A measurement 요구가 생길 때만 재평가한다.
+
+---
+
+# 3. P0~P2 완료 계약
 
 ### P1 Local correctness
 
@@ -102,12 +240,14 @@ Bootstrap owns:
 
 CI identity 기본 boundary:
 
-- state storage의 Blob state read/write
-- foundation RG resource 관리
-- environment RG resource 관리
-- 위 RG 안에서 필요한 role assignment 관리
+- state blob container scope: `Storage Blob Data Contributor`
+- foundation RG scope: `Contributor`
+- environment RG scope: `Contributor`
+- foundation/environment RG scope: role assignment 생성/삭제에 필요한 `Role Based Access Control Administrator`
 
-Subscription-wide Owner/Contributor는 기본값으로 사용하지 않는다.
+`Role Based Access Control Administrator`는 privileged role이므로 project-owned RG 밖으로 scope를 넓히지 않는다. CI가 어떤 workload identity에 어떤 built-in role을 부여하는지 P3A-06 preflight에서 inventory로 고정한다. 필요성이 확인되기 전에는 custom role이나 complex RBAC condition을 추가하지 않는다.
+
+Subscription-wide Owner/Contributor/User Access Administrator는 기본값으로 사용하지 않는다.
 
 Bootstrap과 project finalization은 local operator의 Azure CLI/Entra authentication을 기본으로 한다.
 
@@ -169,7 +309,7 @@ Node SKU/count is not fixed until P3B calibration.
 
 Azure default: AKS managed Istio.
 
-The experiment uses `Sidecar.inboundConnectionPool`, so selected revision must be **`asm-1-30` or newer**.
+Selected Azure Istio revision must be **currently supported for the chosen AKS version/region** and must pass the capability preflight below. Do not derive a permanent minimum revision from `Sidecar.inboundConnectionPool`: that API already exists in upstream Istio 1.29. The exact managed revision is chosen at P3B preflight time.
 
 Exact revision is selected after region/AKS compatibility preflight, not guessed now.
 
@@ -337,7 +477,7 @@ The gate does not replace Forgejo authentication/authorization and does not rece
 
 ## P5.3 Capacity target
 
-Use upstream Istio 1.30+ locally.
+Use an upstream Istio minor aligned with the Azure candidate revision where practical. Pin the exact local version when P5 starts; do not hardcode a feature-derived minimum minor.
 
 The intentional bottleneck is ext-authz-sim Pod **inbound Envoy**, configured through `Sidecar.inboundConnectionPool.http.http2MaxRequests`.
 
@@ -393,7 +533,7 @@ DoD:
 Preflight selects and records:
 
 - supported AKS Kubernetes version
-- managed Istio revision, **asm-1-30+**
+- a currently supported managed Istio revision compatible with the selected AKS version/region
 - node SKU/quota
 - PostgreSQL SKU
 - managed observability dependencies
@@ -681,3 +821,39 @@ Lifecycle이 중요한 PR은 가능한 한 다음을 명시한다.
 - Kafka/RabbitMQ/Service Bus
 - complex priority scheduler
 - always-on public demo
+
+
+---
+
+# 14. 구현 직전 다시 확인할 upstream contract
+
+마지막 검토: **2026-09-24**
+
+Cloud/add-on 지원 범위와 release lifecycle은 바뀔 수 있다. 아래 내용은 실제 해당 work unit을 구현하거나 Azure Gate를 열기 직전에 다시 확인한다.
+
+- Terraform Azure Blob backend / OIDC / Entra ID  
+  https://developer.hashicorp.com/terraform/language/backend/azurerm
+- AKS Istio add-on overview / limitations  
+  https://learn.microsoft.com/azure/aks/istio-about
+- AKS Istio revision/support policy  
+  https://learn.microsoft.com/azure/aks/istio-support-policy
+- AKS Istio MeshConfig allowlist, 특히 `extensionProviders`  
+  https://learn.microsoft.com/azure/aks/istio-meshconfig
+- AKS Istio deployment/revision selection  
+  https://learn.microsoft.com/azure/aks/istio-deploy-addon
+- AKS managed Istio secure ingress credential namespace/contract  
+  https://learn.microsoft.com/azure/aks/istio-secure-gateway
+- AKS managed KEDA  
+  https://learn.microsoft.com/azure/aks/keda-about
+- KEDA + Workload Identity  
+  https://learn.microsoft.com/azure/aks/keda-workload-identity
+- Upstream Istio `Sidecar.inboundConnectionPool`  
+  https://istio.io/latest/docs/reference/config/networking/sidecar/
+- Argo CD Core / installation mode  
+  https://argo-cd.readthedocs.io/en/stable/operator-manual/installation/
+- Argo CD automated sync / self-heal  
+  https://argo-cd.readthedocs.io/en/stable/user-guide/auto_sync/
+- Forgejo v15 configuration contract  
+  https://forgejo.org/docs/v15.0/admin/config-cheat-sheet/
+
+문서가 바뀌어 현재 명세와 충돌하면 코드를 억지로 맞추지 않고 해당 architecture decision을 먼저 수정한다.

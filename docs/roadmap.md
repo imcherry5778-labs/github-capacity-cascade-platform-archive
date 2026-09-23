@@ -117,7 +117,7 @@ SLO threshold는 아직 확정하지 않는다. Azure baseline을 측정한 뒤 
 
 **Azure 비용 0**
 
-- upstream Istio 1.30+ local profile
+- Azure candidate와 정렬된 pinned upstream Istio local profile
 - ext-authz-sim
 - HAProxy
 - shared-gate lifecycle
@@ -158,7 +158,7 @@ Local contract가 안정된 뒤 처음 Azure environment를 실제 생성한다.
 - same-day destroy by default; >24h requires renewed approval
 - destroy/residual inventory
 
-Managed Istio selected revision은 `asm-1-30` 이상이어야 하며 region/AKS compatibility를 실제 preflight에서 확인한다.
+Managed Istio selected revision은 region/AKS compatibility와 required capability를 실제 preflight에서 확인한 뒤 고정한다.
 
 ---
 
