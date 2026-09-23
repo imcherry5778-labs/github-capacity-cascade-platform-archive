@@ -69,8 +69,7 @@ Argo CD 기본 scope:
 
 - Forgejo
 - namespaced Istio routing object
-- namespaced TLS object
-- workload ServiceAccount / SecretProviderClass
+- Forgejo workload ServiceAccount / SecretProviderClass
 - namespaced telemetry config
 
 Azure managed / explicit bootstrap scope:
@@ -79,6 +78,8 @@ Azure managed / explicit bootstrap scope:
 - managed Istio ingress Deployment/Service
 - Argo CD Core 자체
 - cert-manager controller
+- Azure DNS Workload Identity 기반 ClusterIssuer
+- `aks-istio-ingress` ingress Certificate/TLS Secret lifecycle
 - shared Istio MeshConfig
 
 AppProject 제한이 Argo controller ServiceAccount 자체의 Kubernetes RBAC를 제한한다고 가정하지 않는다.
@@ -125,6 +126,7 @@ Reliability experiment 전에 관련 정상 test가 통과해야 한다.
 - PAYG 비용을 사용한다는 사실을 전제로 한다.
 - Azure 실제 provision 전에 cost/resource/RBAC preflight를 수행한다.
 - Local operations/reliability work를 완료하기 전 Azure를 장기 개발 환경처럼 유지하지 않는다.
+- 유료 environment는 same-day destroy가 기본이며 24시간을 넘겨 유지하려면 새 명시적 승인을 받는다.
 - evidence run에서 node SKU/count는 임의로 변경하지 않는다.
 - cost 절감을 위해 의도하지 않은 bottleneck을 만들지 않는다.
 - destroy 후 project-owned residual resource를 확인한다.
