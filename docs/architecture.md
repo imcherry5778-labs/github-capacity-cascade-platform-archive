@@ -28,14 +28,13 @@ flowchart TB
 
         subgraph BOOT["Explicit cluster bootstrap"]
             ARGO["Argo CD Core"]
-            CERT["cert-manager"]
+            CERT["cert-manager / ClusterIssuer / ingress Certificate"]
             MCFG["Shared Istio MeshConfig"]
         end
 
         subgraph STABLE["Argo-managed stable namespaced state"]
             ROUTE["Gateway / VirtualService"]
             FORGEJO["Forgejo"]
-            TLS["Issuer / Certificate"]
             WID["ServiceAccount / SecretProviderClass"]
             TEL["OTel / telemetry config"]
         end
@@ -75,6 +74,7 @@ Log Analytics / Application Insights"]
     FORGEJO --> PG
     FORGEJO --> DISK
     KV --> WID --> FORGEJO
+    CERT -. "TLS Secret in aks-istio-ingress" .-> MIGW
 
     MIGW -. "experiment-only ext_authz check" .-> HAP
     HAP --> ENVOY --> AUTH
@@ -128,6 +128,8 @@ Cluster-scoped 또는 AKS-managed resource integration은 Argo AppProject에 억
 
 - Argo CD Core install
 - cert-manager controller
+- Azure DNS Workload Identity를 사용하는 ACME `ClusterIssuer`
+- `aks-istio-ingress` namespace의 ingress `Certificate`
 - revision-specific Istio shared MeshConfig
 - managed ingress Service의 supported Azure Load Balancer annotation
 
@@ -139,8 +141,7 @@ Argo는 **stable namespaced desired state**를 기본 관리 범위로 한다.
 
 - Forgejo
 - Istio `Gateway` / `VirtualService`
-- namespaced TLS `Issuer` / `Certificate`
-- ServiceAccount / SecretProviderClass
+- Forgejo workload ServiceAccount / SecretProviderClass
 - namespaced telemetry config
 
 Application 계약:
@@ -230,8 +231,12 @@ Experiment-only secret은 ephemeral Kubernetes Secret을 사용할 수 있다.
 
 - 가비아 parent domain 전체를 Azure로 이전하지 않음
 - project subdomain만 Azure DNS로 위임
-- cert-manager DNS-01
-- namespaced Issuer 우선
+- cert-manager ACME DNS-01 사용
+- Azure DNS 인증은 cert-manager Workload Identity 사용
+- Core에서는 `ClusterIssuer`를 사용한다. Azure DNS ambient credential은 `ClusterIssuer`에 기본 지원되며, namespaced `Issuer`를 위해 controller credential 범위를 추가로 넓히지 않는다.
+- managed Istio ingress가 참조하는 TLS Secret은 `aks-istio-ingress` namespace에 있어야 하므로 ingress `Certificate`도 explicit cluster bootstrap이 관리한다.
+- ingress TLS 인증서는 Key Vault persistent workload secret과 별도 lifecycle로 취급한다.
+- `Gateway`의 `credentialName`은 `aks-istio-ingress`에 생성되는 TLS Secret 이름과 일치해야 한다.
 - direct Forgejo public bypass 금지
 
 ---
@@ -342,7 +347,7 @@ Check request에는 필요한 metadata만 사용하며 Git push body 전체를 c
 
 의도적으로 포화시키는 target은 **ext-authz-sim Pod의 inbound Envoy sidecar**다.
 
-Istio 1.30+ `Sidecar.inboundConnectionPool`의 active-request limit을 사용한다.
+Istio 1.30+ `Sidecar.inboundConnectionPool.http.http2MaxRequests`를 사용한다. 이 필드는 이름과 달리 HTTP/1.1과 HTTP/2 모두에 적용되는 최대 active request 수다. 예상되는 Envoy rejection 신호는 `upstream_rq_active_overflow`이며, 실제 selected revision에서 preflight로 확인한다.
 
 ```text
 application CPU may remain low
@@ -430,7 +435,7 @@ Forgejo internal function-level tracing을 Core requirement로 두지 않는다.
 
 Experiment 전 관련 normal E2E가 통과해야 한다.
 
-Shell E2E는 correctness test이고, 지속적인 SLI/load 측정은 별도 developer-probe가 담당한다.
+Shell E2E는 correctness test다. 지속적인 SLI 측정은 기존 Git CLI/curl 동작을 재사용하는 structured probe가 담당하고, bulk/retry load는 k6를 우선 사용한다. 별도 Go probe binary는 shell 기반 측정이 실제 한계에 부딪힐 때만 도입한다.
 
 ---
 
