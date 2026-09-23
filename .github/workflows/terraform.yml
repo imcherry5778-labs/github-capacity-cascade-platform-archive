@@ -41,13 +41,7 @@ jobs:
         run: terraform fmt -check -recursive infra/terraform
 
       - name: Initialize bootstrap without backend
-        run: terraform -chdir=infra/terraform/bootstrap init -backend=false
+        run: terraform -chdir=infra/terraform/bootstrap init -backend=false -lockfile=readonly
 
       - name: Validate bootstrap
         run: terraform -chdir=infra/terraform/bootstrap validate
-
-      - name: Show generated dependency lock
-        run: |
-          echo "::group::.terraform.lock.hcl"
-          cat infra/terraform/bootstrap/.terraform.lock.hcl
-          echo "::endgroup::"
