@@ -11,6 +11,7 @@ on:
       - "platform/**"
       - "scripts/check-local-config.sh"
       - "scripts/local-*.sh"
+      - "tests/e2e/**"
 
 permissions:
   contents: read
