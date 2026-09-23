@@ -66,7 +66,7 @@ admin_token_response="$(curl --fail-with-body --silent --show-error \
   --request POST \
   --data "{\"name\":\"$admin_token_name\",\"scopes\":[\"all\"]}" \
   "$base_url/api/v1/users/$admin_username/tokens")"
-admin_token="$(printf '%s' "$admin_token_response" | json_get token)"
+admin_token="$(printf '%s' "$admin_token_response" | json_get sha1)"
 
 developer_suffix="$(date -u +%H%M%S)-$$"
 developer_username="e2e-developer-$developer_suffix"
@@ -91,7 +91,7 @@ developer_token_response="$(curl --fail-with-body --silent --show-error \
   --request POST \
   --data "{\"name\":\"$developer_token_name\",\"scopes\":[\"all\"]}" \
   "$base_url/api/v1/users/$developer_username/tokens")"
-developer_token="$(printf '%s' "$developer_token_response" | json_get token)"
+developer_token="$(printf '%s' "$developer_token_response" | json_get sha1)"
 
 repo_name="journey-$developer_suffix"
 repo_response="$(curl --fail-with-body --silent --show-error \
