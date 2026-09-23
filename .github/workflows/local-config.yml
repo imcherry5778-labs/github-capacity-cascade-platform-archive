@@ -12,6 +12,8 @@ on:
       - "scripts/check-local-config.sh"
       - "scripts/local-*.sh"
       - "tests/e2e/**"
+      - "tests/infrastructure/**"
+      - "platform/gitops/**"
 
 permissions:
   contents: read
@@ -47,7 +49,7 @@ jobs:
     name: fresh-cluster-runtime
     needs: check
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
@@ -86,3 +88,8 @@ jobs:
 
       - name: Verify fresh local runtime
         run: make local-verify
+
+      - name: Verify local GitOps reconciliation
+        env:
+          GITOPS_REVISION: ${{ github.event.pull_request.head.sha }}
+        run: make gitops-verify
