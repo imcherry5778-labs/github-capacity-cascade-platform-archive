@@ -159,7 +159,7 @@ pr_response="$(curl --fail-with-body --silent --show-error \
   --header "Authorization: token $developer_token" \
   --header "Content-Type: application/json" \
   --request POST \
-  --data '{"title":"E2E pull request","head":"feature/e2e","base":"main","body":"Developer journey pull request"}' \
+  --data "{\"title\":\"E2E pull request\",\"head\":\"$developer_username:feature/e2e\",\"base\":\"main\",\"body\":\"Developer journey pull request\"}" \
   "$base_url/api/v1/repos/$developer_username/$repo_name/pulls")"
 pr_number="$(printf '%s' "$pr_response" | json_get number)"
 
