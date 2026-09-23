@@ -25,5 +25,6 @@ trap cleanup EXIT
 make check-local-config
 bash ./scripts/local-up.sh
 bash ./scripts/local-smoke.sh
+make local-e2e
 
 echo "local runtime baseline: PASS"
