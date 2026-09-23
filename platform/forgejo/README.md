@@ -8,12 +8,14 @@
 - Forgejo Helm chart: `17.1.1`
 - replica: 1
 - deployment strategy: `Recreate`
-- Git transport: HTTPS only
+- SSH Git disabled; Azure Core는 HTTPS Git만 허용
+- Local E2E는 port-forward된 HTTP endpoint를 개발용 예외로 사용
 - database: external PostgreSQL
 - session: database provider
 - cache: `twoqueue`
 - queue: `level`
-- repository code/PR/Issue만 Core에 사용
+- 새 repository의 기본 unit을 code / releases / issues / pull requests로 명시
+- repository code/PR/Issue를 Core developer journey에 사용
 - Actions, Packages, mirroring, repository migration은 Core baseline에서 비활성화
 
 Exact version inventory는 [../../versions.env](../../versions.env)를 함께 갱신한다.

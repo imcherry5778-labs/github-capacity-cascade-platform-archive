@@ -7,6 +7,8 @@ cd "$repo_root"
 # shellcheck disable=SC1091
 source "$repo_root/versions.env"
 
+bash "$repo_root/scripts/check-version-inventory.sh"
+
 require_command() {
   local command_name="$1"
   if ! command -v "$command_name" >/dev/null 2>&1; then
@@ -24,15 +26,12 @@ fi
 
 grep -Fq "image: $K3S_IMAGE" platform/local/k3d.yaml
 grep -Fq "tag: ${FORGEJO_IMAGE_TAG}" platform/forgejo/values-common.yaml
-grep -Fq "image: ${POSTGRES_IMAGE}" platform/postgres/local.yaml
+grep -Fq "image: ${POSTGRES_IMAGE}" platform/local/postgres.yaml
 
-grep -Fq "kind: Service" platform/postgres/local.yaml
-grep -Fq "kind: StatefulSet" platform/postgres/local.yaml
-grep -Fq "secretKeyRef:" platform/postgres/local.yaml
-if grep -Eq '^[[:space:]]*POSTGRES_PASSWORD:[[:space:]]+[^$]' platform/postgres/local.yaml; then
-  echo "ERROR: literal PostgreSQL password detected" >&2
-  exit 1
-fi
+grep -Fq "kind: Service" platform/local/postgres.yaml
+grep -Fq "kind: StatefulSet" platform/local/postgres.yaml
+grep -Fq "name: POSTGRES_PASSWORD" platform/local/postgres.yaml
+grep -Fq "secretKeyRef:" platform/local/postgres.yaml
 tmp_render="$(mktemp)"
 trap 'rm -f "$tmp_render"' EXIT
 

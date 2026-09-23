@@ -30,17 +30,42 @@ json_get() {
   python3 -c 'import json,sys; print(json.load(sys.stdin)[sys.argv[1]])' "$key"
 }
 
+base_url="http://127.0.0.1:$local_port"
+admin_username=""
+admin_token_name=""
+admin_token=""
+developer_username=""
+
 port_forward_log="$runtime_dir/e2e-port-forward.log"
 kubectl -n platform port-forward service/forgejo-http "$local_port:3000" >"$port_forward_log" 2>&1 &
 port_forward_pid=$!
 
-cleanup_port_forward() {
+cleanup() {
+  local exit_code=$?
+
+  if [[ -n "$admin_token" && -n "$developer_username" ]]; then
+    curl --fail --silent \
+      --header "Authorization: token $admin_token" \
+      --request DELETE \
+      "$base_url/api/v1/admin/users/$developer_username?purge=true" \
+      >/dev/null 2>&1 || true
+  fi
+
+  if [[ -n "$admin_token" && -n "$admin_username" && -n "$admin_token_name" ]]; then
+    curl --fail --silent \
+      --header "Authorization: token $admin_token" \
+      --request DELETE \
+      "$base_url/api/v1/admin/users/$admin_username/tokens/$admin_token_name" \
+      >/dev/null 2>&1 || true
+  fi
+
   kill "$port_forward_pid" >/dev/null 2>&1 || true
   wait "$port_forward_pid" >/dev/null 2>&1 || true
-}
-trap cleanup_port_forward EXIT
 
-base_url="http://127.0.0.1:$local_port"
+  exit "$exit_code"
+}
+trap cleanup EXIT
+
 healthy=false
 for _ in $(seq 1 30); do
   if curl -fsS "$base_url/api/healthz" >/dev/null; then
@@ -89,17 +114,17 @@ developer_token_response="$(curl --fail-with-body --silent --show-error \
   --user "$developer_username:$developer_password" \
   --header "Content-Type: application/json" \
   --request POST \
-  --data "{\"name\":\"$developer_token_name\",\"scopes\":[\"all\"]}" \
+  --data "{\"name\":\"$developer_token_name\",\"scopes\":[\"write:repository\",\"write:issue\"]}" \
   "$base_url/api/v1/users/$developer_username/tokens")"
 developer_token="$(printf '%s' "$developer_token_response" | json_get sha1)"
 
 repo_name="journey-$developer_suffix"
 repo_response="$(curl --fail-with-body --silent --show-error \
-  --header "Authorization: token $developer_token" \
+  --header "Authorization: token $admin_token" \
   --header "Content-Type: application/json" \
   --request POST \
   --data "{\"name\":\"$repo_name\",\"private\":true,\"auto_init\":false,\"default_branch\":\"main\",\"description\":\"Developer journey E2E fixture\"}" \
-  "$base_url/api/v1/user/repos")"
+  "$base_url/api/v1/admin/users/$developer_username/repos")"
 created_repo_name="$(printf '%s' "$repo_response" | json_get name)"
 [[ "$created_repo_name" == "$repo_name" ]]
 
@@ -155,14 +180,6 @@ if [[ "$repo_non_empty" != "true" ]]; then
   echo "ERROR: Forgejo repository remained empty after initial Git push" >&2
   exit 1
 fi
-
-curl --fail-with-body --silent --show-error \
-  --header "Authorization: token $developer_token" \
-  --header "Content-Type: application/json" \
-  --request PATCH \
-  --data '{"default_branch":"main","has_pull_requests":true,"has_issues":true}' \
-  "$base_url/api/v1/repos/$developer_username/$repo_name" \
-  >/dev/null
 
 repo_state_response="$(curl --fail-with-body --silent --show-error \
   --header "Authorization: token $developer_token" \

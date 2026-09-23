@@ -62,7 +62,7 @@ kubectl -n platform create secret generic forgejo-admin \
   --from-literal=username=platform-admin \
   --from-literal=password="$admin_password"
 
-kubectl apply -f platform/postgres/local.yaml
+kubectl apply -f platform/local/postgres.yaml
 kubectl -n platform rollout status statefulset/postgres --timeout=180s
 
 if [[ "${LOCAL_SKIP_FORGEJO:-false}" == "true" ]]; then

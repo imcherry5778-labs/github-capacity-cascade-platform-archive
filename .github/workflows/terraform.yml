@@ -8,6 +8,7 @@ on:
       - ".github/workflows/terraform.yml"
       - "versions.env"
       - "infra/terraform/**"
+      - "scripts/check-version-inventory.sh"
 
 permissions:
   contents: read
@@ -36,6 +37,9 @@ jobs:
         with:
           terraform_version: ${{ steps.versions.outputs.terraform }}
           terraform_wrapper: false
+
+      - name: Check version inventory
+        run: make check-versions
 
       - name: Check formatting
         run: terraform fmt -check -recursive infra/terraform

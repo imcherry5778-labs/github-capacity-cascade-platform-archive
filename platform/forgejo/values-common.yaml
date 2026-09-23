@@ -64,6 +64,7 @@ gitea:
 
     repository:
       DISABLE_MIGRATIONS: true
+      DEFAULT_REPO_UNITS: repo.code,repo.releases,repo.issues,repo.pulls
       DISABLED_REPO_UNITS: repo.wiki,repo.projects,repo.packages,repo.actions
 
     actions:
