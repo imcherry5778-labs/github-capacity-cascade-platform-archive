@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   validate:
-    name: bootstrap-fmt-validate
+    name: fmt-and-validate
     runs-on: ubuntu-24.04
 
     steps:
@@ -40,8 +40,13 @@ jobs:
       - name: Check formatting
         run: terraform fmt -check -recursive infra/terraform
 
-      - name: Initialize bootstrap without backend
-        run: terraform -chdir=infra/terraform/bootstrap init -backend=false -lockfile=readonly
-
-      - name: Validate bootstrap
-        run: terraform -chdir=infra/terraform/bootstrap validate
+      - name: Initialize and validate root stacks
+        shell: bash
+        run: |
+          set -euo pipefail
+          for stack in bootstrap foundation; do
+            echo "::group::terraform $stack"
+            terraform -chdir="infra/terraform/$stack" init -backend=false -lockfile=readonly
+            terraform -chdir="infra/terraform/$stack" validate
+            echo "::endgroup::"
+          done
