@@ -1,0 +1,13 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: capacity-platform
+  namespace: argocd
+spec:
+  description: Stable developer platform resources managed by Argo CD.
+  sourceRepos:
+    - https://github.com/imcherry5778-labs/github-capacity-cascade-platform.git
+    - code.forgejo.org/forgejo-helm
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: platform
