@@ -114,7 +114,7 @@ developer_token_response="$(curl --fail-with-body --silent --show-error \
   --user "$developer_username:$developer_password" \
   --header "Content-Type: application/json" \
   --request POST \
-  --data "{\"name\":\"$developer_token_name\",\"scopes\":[\"write:repository\",\"write:issue\"]}" \
+  --data "{\"name\":\"$developer_token_name\",\"scopes\":[\"write:user\",\"write:repository\",\"write:issue\"]}" \
   "$base_url/api/v1/users/$developer_username/tokens")"
 developer_token="$(printf '%s' "$developer_token_response" | json_get sha1)"
 
