@@ -1,4 +1,7 @@
-.PHONY: check-local-config local-up local-smoke local-e2e local-down local-verify local-gitops-verify
+.PHONY: check-versions check-local-config local-up local-smoke local-e2e local-down local-verify local-gitops-verify terraform-check
+
+check-versions:
+	bash ./scripts/check-version-inventory.sh
 
 check-local-config:
 	bash ./scripts/check-local-config.sh
@@ -21,9 +24,8 @@ local-verify:
 local-gitops-verify:
 	bash ./tests/infrastructure/argocd-reconciliation.sh
 
-.PHONY: terraform-check
-
 terraform-check:
+	bash ./scripts/check-version-inventory.sh
 	terraform fmt -check -recursive infra/terraform
 	terraform -chdir=infra/terraform/bootstrap init -backend=false -lockfile=readonly
 	terraform -chdir=infra/terraform/bootstrap validate
