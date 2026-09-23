@@ -120,11 +120,11 @@ developer_token="$(printf '%s' "$developer_token_response" | json_get sha1)"
 
 repo_name="journey-$developer_suffix"
 repo_response="$(curl --fail-with-body --silent --show-error \
-  --header "Authorization: token $developer_token" \
+  --header "Authorization: token $admin_token" \
   --header "Content-Type: application/json" \
   --request POST \
   --data "{\"name\":\"$repo_name\",\"private\":true,\"auto_init\":false,\"default_branch\":\"main\",\"description\":\"Developer journey E2E fixture\"}" \
-  "$base_url/api/v1/user/repos")"
+  "$base_url/api/v1/admin/users/$developer_username/repos")"
 created_repo_name="$(printf '%s' "$repo_response" | json_get name)"
 [[ "$created_repo_name" == "$repo_name" ]]
 
