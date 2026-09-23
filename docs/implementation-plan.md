@@ -2,46 +2,86 @@
 
 ## 1. 목적
 
-이 문서는 Project Charter와 Architecture를 **실제 구현 단위**로 변환한다.
+이 문서는 Project Charter와 Architecture를 **실제로 구현하고 검증할 수 있는 work unit**으로 변환한다.
 
-이 문서가 답해야 하는 질문은 다음이다.
+목표는 기술을 많이 넣는 것이 아니다. 각 단계에서 다음 질문에 답할 수 있어야 한다.
 
-- 지금 무엇을 구현하는가?
-- 그 작업보다 먼저 완료되어야 하는 것은 무엇인가?
-- 무엇을 검증해야 완료라고 말할 수 있는가?
-- Azure 비용은 어느 시점부터 발생하는가?
-- 실패하면 무엇을 되돌리거나 다시 검토하는가?
+- 왜 지금 이 capability가 필요한가?
+- 무엇이 먼저 완료되어야 하는가?
+- 무엇을 실제로 검증해야 완료인가?
+- Azure 비용은 언제부터 발생하는가?
+- 실패하면 무엇을 되돌리거나 재검토하는가?
 - 어떤 evidence를 남기는가?
 
-세부 파일명이나 tool 옵션을 미리 과도하게 고정하지 않는다. 실제 capability와 acceptance가 먼저다.
+파일명, SKU, threshold처럼 baseline/calibration이 필요한 값은 필요하기 전에 고정하지 않는다.
 
 ---
 
 ## 2. 현재 상태
 
-| 단계 | 상태 | 비고 |
+| 단계 | 상태 | 실제 검증 범위 |
 | --- | --- | --- |
 | P0 Project Foundation | 완료 | Charter / Architecture / conventions |
 | P1 Local Correctness Baseline | 완료 | fresh k3d + Forgejo + Git/PR/Issue E2E |
 | P2 GitOps Integration | 완료 | Argo CD Core sync/self-heal + E2E |
-| P3.1 Terraform State Bootstrap Source | 완료 | source/lock/static CI. Azure apply는 아직 수행하지 않음 |
-| P3 Azure Environment | 진행 전 | 이 문서를 기준으로 구현 재개 |
-| P4 Operations Contract | 진행 전 | |
-| P5 Reliability Fixture | 진행 전 | |
-| P6~P9 Experiment/Evidence | 진행 전 | |
+| P3A.1 Terraform State Bootstrap Source | 완료 | source / provider lock / static CI |
+| P3A Azure IaC Specification | 진행 | Azure apply 없이 source와 lifecycle 정의 |
+| P4A Local Operations Contract | 진행 전 | |
+| P5 Local Reliability Fixture | 진행 전 | |
+| P3B Azure Calibration Environment | 진행 전 | 명시적 승인 필요 |
+| P4B Azure Operations Verification | 진행 전 | |
+| P6~P9 Final Experiment/Evidence | 진행 전 | |
 
-`완료`는 repository의 현재 source와 CI에서 검증한 범위만 의미한다. Azure에서 검증하지 않은 기능을 Azure에서도 완료됐다고 표현하지 않는다.
+여기서 **완료**는 현재 repository와 CI에서 실제로 검증한 범위만 뜻한다. Local에서 통과한 기능을 Azure에서도 검증됐다고 표현하지 않는다.
 
 ---
 
-## 3. 최종 책임 구조
+## 3. 구현 순서
 
-아래는 **논리적 destination**이다. 아직 필요하지 않은 빈 디렉터리는 만들지 않는다.
+무료 Azure credit이 끝난 PAYG 환경이므로 Azure를 먼저 띄운 채 개발하지 않는다.
+
+최종 순서는 다음과 같다.
+
+```text
+P0  Project foundation                         DONE
+ ↓
+P1  Local Forgejo correctness                  DONE
+ ↓
+P2  Local GitOps reconciliation                DONE
+ ↓
+P3A Azure IaC / identity / lifecycle source    COST 0
+ ↓
+P4A Local operations + measurement             COST 0
+ ↓
+P5  Local reliability fixture                  COST 0
+ ↓
+P3B Azure provision + compatibility calibration   PAID, SHORT-LIVED
+ ↓
+P4B Azure operations verification                 PAID, SHORT-LIVED
+ ↓
+P6  Cascade investigation
+ ↓
+P7  Mitigation + recovery
+ ↓
+P8  Critical / bulk isolation
+ ↓
+P9  Regression gate + final evidence + teardown
+```
+
+이 순서는 단순 비용 절감용 타협이 아니다.
+
+Azure에서 처음부터 application/experiment bug를 디버깅하지 않고, **Local에서 이미 검증한 workload와 experiment contract를 Cloud integration 대상으로 가져가기 위한 경계**다.
+
+---
+
+## 4. 최종 repository 책임 구조
+
+아래는 논리적 destination이다. 필요하기 전에는 빈 디렉터리를 만들지 않는다.
 
 ```text
 cmd/
-├── developer-probe/       # P4부터
-└── ext-authz-sim/         # P5부터
+├── developer-probe/        # P4A부터
+└── ext-authz-sim/          # P5부터
 
 internal/
 └── 실제 Go package가 필요할 때만 생성
@@ -56,9 +96,9 @@ platform/
 ├── local/
 ├── forgejo/
 ├── gitops/
-├── ingress/               # 실제 ingress source가 생길 때
-├── tls/                   # 실제 TLS source가 생길 때
-└── telemetry/             # 실제 collector/config가 생길 때
+├── ingress/
+├── tls/
+└── telemetry/
 
 operations/
 ├── slo/
@@ -94,93 +134,112 @@ docs/
 
 ---
 
-## 4. Control plane ownership
+# 5. Control-plane ownership
 
-### 4.1 Terraform / AKS managed lifecycle
+## 5.1 Terraform
 
-Terraform이 소유한다.
+Terraform은 Azure resource와 Azure-managed capability의 lifecycle을 담당한다.
 
-- Azure resource lifecycle
-- AKS managed add-on enablement
-- Azure identity와 RBAC
+- Terraform state backend
+- permission-boundary resource groups
+- Azure identities / RBAC
 - Azure DNS / Key Vault
-- PostgreSQL / storage / observability
+- VNet / AKS / PostgreSQL / storage
+- Azure-managed observability
+- AKS managed add-on enablement
 
-Azure에서는 다음 capability를 우선 **AKS managed add-on**으로 사용한다.
+Azure Core에서는 다음을 managed capability로 우선 사용한다.
 
-- Istio service mesh add-on
-- KEDA add-on
+- AKS Istio service mesh add-on
+- AKS KEDA add-on
 - Azure Key Vault provider for Secrets Store CSI Driver
 
-이유는 cluster-scoped controller의 lifecycle을 Argo CD에 불필요하게 맡기지 않기 위해서다.
+Cluster-scoped controller를 GitOps라는 이유만으로 직접 운영하지 않는다.
 
-### 4.2 Explicit cluster bootstrap
+## 5.2 Explicit cluster bootstrap
 
 GitHub Actions 또는 명시적 bootstrap 절차가 담당한다.
 
 - Argo CD Core 자체
 - cert-manager controller
-- AKS managed Istio revision-specific shared MeshConfig처럼 `platform` namespace 밖의 필수 cluster configuration
+- AKS managed Istio의 shared MeshConfig
+- managed Istio ingress Service에 필요한 supported Azure Load Balancer annotation
 
-이 영역은 Argo CD의 `capacity-platform` AppProject 권한을 확대하기 위한 이유가 되어서는 안 된다.
+이 영역은 `capacity-platform` AppProject의 scope를 넓히기 위한 이유가 되어서는 안 된다.
 
-### 4.3 Argo CD Core
+## 5.3 Argo CD Core
 
-Argo CD는 **namespaced stable desired state**를 기본 경계로 한다.
+Argo CD는 **stable namespaced desired state**를 기본 관리 범위로 한다.
 
-현재/예정:
+예:
 
 - Forgejo
-- namespaced ingress/routing object
-- namespaced TLS object
-- SecretProviderClass와 ServiceAccount 같은 workload integration
-- namespaced telemetry collector/config
+- Istio `Gateway` / `VirtualService` 같은 namespaced routing object
+- namespaced `Issuer` / `Certificate`
+- workload ServiceAccount / SecretProviderClass
+- namespaced telemetry configuration
 
 계약:
 
-- exact source revision
+- exact Git revision
 - auto-sync
 - self-heal
 - automatic prune off
-- `platform` namespace 중심
-- cluster-wide wildcard 권한을 추가하지 않음
+- source/destination restriction
+- experiment resource를 관리하지 않음
 
-### 4.4 Experiment runner
+주의:
 
-실험에서만 존재하거나 바뀌는 state를 소유한다.
+> AppProject restriction은 Argo application의 logical boundary다. upstream Argo CD Core controller ServiceAccount의 실제 Kubernetes RBAC가 자동으로 namespace-only가 되는 것은 아니다.
+
+Core에서는 default Core controller privilege를 single-operator ephemeral environment의 의도적인 production-readiness deviation으로 기록한다. 추가 RBAC hardening은 필요성이 확인될 때만 수행한다.
+
+## 5.4 AKS managed Istio ingress
+
+Managed Istio ingress gateway의 Deployment/Service lifecycle은 AKS add-on 영역이다.
+
+Argo는 gateway Deployment를 소유하지 않는다.
+
+Terraform이 static public IP를 준비하고, explicit bootstrap이 AKS가 지원하는 Service annotation을 통해 managed ingress Service와 연결한다. Argo는 그 위의 namespaced routing configuration을 관리한다.
+
+## 5.5 Experiment runner
+
+실험에서만 생기거나 바뀌는 state를 소유한다.
 
 - HAProxy
 - ext-authz-sim
-- temporary `AuthorizationPolicy`
-- experimental `Sidecar` connection-pool setting
+- temporary `CUSTOM AuthorizationPolicy`
+- experiment `Sidecar` connection-pool policy
 - HPA / ScaledObject
-- load/fault resource
-- scenario-specific routing/classification
+- load/fault configuration
+- traffic-class routing
 
-실험이 끝나면 해당 state를 제거한다.
+실험이 끝나면 자신이 만든 resource를 제거한다.
 
 ---
 
-## 5. Local / Azure parity의 의미
+# 6. Local / Azure parity
 
-Local과 Azure가 **같은 배포 구현**이어야 한다는 뜻은 아니다.
+Local과 Azure가 같은 설치 방법을 사용해야 한다는 뜻은 아니다.
 
 같아야 하는 것:
 
 - Forgejo operating contract
 - developer operation 정의
 - GitOps desired-state semantics
-- reliability fixture의 request path
-- experiment variable과 measurement boundary
+- shared-gate request path
+- experiment variable
+- measurement boundary
 
 달라도 되는 것:
 
-- local PostgreSQL vs Azure PostgreSQL
-- upstream Istio local install vs AKS managed Istio add-on
-- local telemetry backend vs Azure Managed Prometheus/Log Analytics
-- local secret vs Azure Key Vault
+- local PostgreSQL fixture vs Azure PostgreSQL
+- upstream Istio local install vs AKS managed Istio
+- local metric collection vs Azure Managed Prometheus
+- local Secret vs Azure Key Vault
+- local KEDA runtime 검증 방식 vs AKS managed KEDA
 
-환경 차이는 결과 해석에 영향을 줄 수 있으므로 final evidence에는 실제 runtime version과 topology를 기록한다.
+환경 차이는 final evidence의 provenance에 기록한다.
 
 ---
 
@@ -188,9 +247,10 @@ Local과 Azure가 **같은 배포 구현**이어야 한다는 뜻은 아니다.
 
 **상태: 완료**
 
-완료 evidence:
+완료 범위:
 
-- Charter / Architecture
+- Charter
+- Architecture
 - conventions / terminology
 - responsibility-oriented repository
 - PR-gated change management
@@ -201,32 +261,23 @@ Local과 Azure가 **같은 배포 구현**이어야 한다는 뜻은 아니다.
 
 **상태: 완료**
 
-## 범위
+구현/검증:
 
-- Forgejo v15 LTS exact patch
-- upstream Helm chart exact version
+- Forgejo v15 LTS exact patch pin
+- upstream Forgejo Helm chart exact version
 - single replica / Recreate
 - local PostgreSQL substitute
 - fresh k3d lifecycle
 - health/version smoke
-- normal developer E2E
+- developer correctness E2E
+  - Git push
+  - clone/fetch
+  - feature push
+  - PR create/read
+  - Issue create/read
+- disposable test user/repository cleanup
 
-Developer E2E:
-
-- Git push
-- clone/fetch
-- feature push
-- PR create/read
-- Issue create/read
-
-## 의도적으로 P1에 포함하지 않는 것
-
-- Istio
-- developer SLI measurement binary
-- browser session restart continuity
-- backup/restore
-
-이 항목들은 각각 P3/P4에서 다룬다.
+P1 shell E2E는 **correctness test**이며 SLI measurement tool이 아니다.
 
 ---
 
@@ -234,72 +285,68 @@ Developer E2E:
 
 **상태: 완료**
 
-## Acceptance
+Acceptance:
 
-- Argo CD Core exact version pin
+- Argo CD Core exact version/commit pin
 - restricted AppProject
-- upstream Forgejo chart + Git values
-- exact PR head checkout과 `targetRevision` 일치
+- upstream Forgejo chart + repository values
+- PR head checkout revision = Argo `targetRevision`
 - initial Synced/Healthy
-- manual replica drift
+- controlled Forgejo replica drift
 - self-heal
 - post-heal developer E2E
-- no automatic prune
+- automatic prune off
 
 ---
 
-# P3 — Azure Foundation and Ephemeral Environment
+# P3A — Azure IaC Specification and Static Validation
 
-P3는 한 번에 구현하지 않는다.
+**Azure cost: 0**
 
-## P3.1 — State backend lifecycle
+Azure resource를 만들지 않고 lifecycle, identity, network, add-on source를 완성한다.
 
-### 현재 상태
+## P3A.1 — Bootstrap boundary
 
-Source/static validation은 완료했다. 실제 apply는 아직 하지 않았다.
+현재 state storage source는 존재한다. 다음 변경에서 bootstrap 책임을 최종 경계에 맞춘다.
 
-### 실제 apply 전에 보완할 것
+Bootstrap이 소유:
 
-Bootstrap은 state storage를 만드는 것에서 끝나지 않는다.
+- state Resource Group / Storage Account / private blob container
+- GitHub Actions용 user-assigned managed identity
+- GitHub Environment `azure`를 subject로 하는 federated identity credential
+- empty foundation Resource Group
+- empty environment Resource Group
+- CI identity에 필요한 scoped RBAC
 
-Foundation의 첫 remote-state 접근을 위해 **operator principal의 Blob data-plane access**를 명시적으로 준비해야 한다.
+CI identity 기본 권한:
 
-필수 계약:
+- state storage에 Blob state read/write가 가능한 data-plane role
+- foundation Resource Group에 resource 관리 권한
+- environment Resource Group에 resource 관리 권한
+- 위 두 RG에서 Terraform이 필요한 role assignment를 만들 수 있는 scoped RBAC-management 권한
 
-- Shared Key 사용 금지
-- Entra ID 사용
-- state container 접근 principal에 필요한 data-plane role 부여
-- Terraform state는 민감 데이터로 취급
-- state file/log/artifact를 Git 또는 CI artifact로 업로드하지 않음
+Subscription-wide Owner/Contributor를 기본값으로 사용하지 않는다.
 
-CI identity에는 이후 state container 범위의 `Storage Blob Data Contributor` 수준 권한을 사용한다.
+Bootstrap/final teardown은 local operator가 Azure CLI/Entra authentication으로 수행하는 것을 기본으로 한다.
 
 ### Acceptance
 
-- local operator로 bootstrap apply
-- 새 shell에서 state storage 실제 존재 확인
-- authorized principal만 blob state read/write 가능
-- bootstrap state backup/recovery/import 절차 확인
+Static 단계:
 
-### 비용
+- `fmt`
+- `init -backend=false -lockfile=readonly`
+- `validate`
+- intended RBAC scope review
 
-명시적 승인 전 apply 금지.
+Actual Azure apply는 Gate 1에서만 수행한다.
 
----
+## P3A.2 — Foundation source
 
-## P3.2 — Foundation
+Foundation은 bootstrap이 미리 만든 foundation RG 안에서 다음을 관리한다.
 
-### 책임
-
-Environment보다 오래 유지되는 최소 resource:
-
-- project DNS zone
-- Key Vault
-- environment resource-group permission boundary
-- GitHub Actions용 Azure federated identity
-- 필요한 최소 scoped RBAC
-
-### DNS
+- project-dedicated Azure DNS public zone
+- Azure Key Vault
+- persistent shared identities/RBAC 중 실제로 필요한 것
 
 가비아 parent domain 전체를 Azure로 이전하지 않는다.
 
@@ -309,63 +356,24 @@ parent.example
       └── NS delegation → Azure DNS
 ```
 
-Terraform은 Azure DNS zone을 관리하고, 가비아 delegation은 runbook에서 명시적으로 설정/제거한다.
+가비아의 NS delegation 자체는 외부-provider runbook action이며 Terraform Azure state에 넣지 않는다.
 
-### GitHub OIDC
+## P3A.3 — Environment source
 
-장기 Azure client secret을 만들지 않는다.
+Environment는 bootstrap이 미리 만든 environment RG 안에서 다음을 관리한다.
 
-초기 foundation 생성은 local operator의 Azure CLI/Entra authentication을 허용한다.
-
-Foundation이 federation/RBAC을 만든 뒤:
-
-```text
-GitHub Actions
-→ OIDC federation
-→ Azure identity
-→ remote state / environment scope
-```
-
-를 기본 배포 경로로 전환한다.
-
-CI identity에 subscription-wide Owner를 주지 않는다.
-
-### Key Vault
-
-Terraform은 Key Vault와 access boundary를 관리한다.
-
-Secret value가 Terraform state에 들어가는 경우 state 자체를 민감 데이터로 취급한다.
-
-실제 workload는 Workload Identity + Secrets Store CSI 경로로 secret을 읽는다.
-
-### Acceptance
-
-- foundation `plan` 검토
-- explicit approved apply
-- OIDC login without client secret
-- state backend 접근
-- DNS zone output 확인
-- Key Vault RBAC deny/allow 확인
-
----
-
-## P3.3 — Environment infrastructure
-
-### 책임
-
-Ephemeral environment:
-
-- VNet
+- VNet / subnets
 - AKS
 - system/user node pools
 - ACR
 - Azure PostgreSQL Flexible Server
-- private PostgreSQL DNS/network
-- application data disk/storage
+- private PostgreSQL network/DNS
+- Forgejo application-data storage
 - Azure Monitor Workspace / Managed Prometheus
 - Managed Grafana
 - Log Analytics
 - Application Insights
+- static public IP
 - required AKS managed add-ons
 
 ### Network
@@ -377,170 +385,95 @@ Ephemeral environment:
 
 ### Nodes
 
-초기 topology:
-
 - dedicated system pool
 - dedicated user pool
-- evidence에서는 node count fixed
+- final evidence에서 node capacity fixed
 
-Exact SKU는 calibration 전 고정하지 않는다.
+Exact SKU/count는 Azure preflight/calibration 후 고정한다.
 
-선택 원칙:
+비용은 node를 위험하게 줄여서가 아니라 **environment runtime을 짧게 유지해** 제어한다.
 
-> 비용을 줄이기 위해 node를 작게 만들어 의도하지 않은 bottleneck을 만들지 않는다. 비용은 **runtime을 짧게 유지**해서 제어한다.
+## P3A.4 — Managed capability source
 
-### PostgreSQL
+### Istio
 
-- PostgreSQL 17 track
-- private network
-- Azure PITR enabled according to selected backup retention
-- Forgejo 실험의 primary bottleneck이 아니어야 함
+Azure 기본 선택은 AKS managed Istio add-on이다.
 
-### Acceptance
+중요한 dependency:
 
-- Terraform plan contains only expected project resources
-- provision
-- network/DNS reachability
-- node pressure 없음
-- PostgreSQL private connectivity
-- Azure resource inventory 기록
+> 이 프로젝트가 사용하는 `Sidecar.inboundConnectionPool`은 Istio 1.30+가 필요하다.
 
----
+따라서 실제 Azure environment에서 선택하는 managed revision은 **`asm-1-30` 이상**이어야 한다.
 
-## P3.4 — Managed platform capability
+Exact revision은 source에 추측으로 고정하지 않는다. Azure apply 직전에 region/AKS compatibility를 조회해 고정하고 evidence에 기록한다.
 
-### AKS managed Istio
+Local reliability fixture도 가능한 한 같은 Istio minor(1.30+)를 사용한다.
 
-Azure Core의 기본 선택은 **AKS Istio service mesh add-on**이다.
+### KEDA
 
-현재 Azure 문서는 MeshConfig `extensionProviders`를 허용하며 sidecar `concurrency`를 지원한다. Custom extension provider 자체의 문제는 Azure support boundary 밖이다.
+Azure는 AKS managed KEDA add-on을 사용한다.
 
-따라서 실제 selected AKS/Istio revision에서 다음 preflight를 통과해야 한다.
+Controller는 Azure-managed이고, experiment runner가 scenario-specific ScaledObject를 소유한다.
 
-1. revision 확인
-2. sidecar injection
-3. `extensionProviders` shared MeshConfig 적용
-4. `CUSTOM AuthorizationPolicy`로 test request만 ext_authz에 전달
-5. policy 제거 후 normal path 복귀
-6. Istio `Sidecar.inboundConnectionPool` 적용
-7. configured active-request limit에서 Envoy rejection signal 관측
+### Key Vault CSI
 
-이 중 필수 기능이 blocked/비정상이라면 **그때만** self-managed Istio fallback ADR을 작성한다.
-
-### AKS managed KEDA
-
-Azure에서는 AKS KEDA add-on을 기본 사용한다.
-
-P7에서 Azure Managed Prometheus query + Workload Identity 기반 scaling을 실제로 검증한다.
-
-### Secrets Store CSI
-
-AKS managed add-on을 사용한다.
-
-Persistent workload secret은 Key Vault + Workload Identity를 사용한다.
+AKS managed Key Vault CSI provider를 사용한다.
 
 ### cert-manager
 
-TLS DNS-01 발급을 위해 필요한 third-party cluster-scoped controller다.
+TLS DNS-01에 필요할 때만 설치한다.
 
-Argo AppProject 권한을 확대하지 않고 explicit bootstrap으로 설치한다.
-
-### Acceptance
-
-- selected add-on revisions 기록
-- sidecar injection 확인
-- no experiment policy 상태에서 developer E2E PASS
-- managed capability가 normal path를 오염시키지 않음
+- controller: explicit cluster bootstrap
+- 가능하면 namespaced `Issuer` / `Certificate`: Argo
+- `ClusterIssuer`는 실제 요구가 없으면 사용하지 않음
 
 ---
 
-## P3.5 — Stable Azure platform deployment
+# P4A — Local Operations and Measurement Contract
 
-### Argo bootstrap
+**Azure cost: 0**
 
-Argo CD Core는 explicit bootstrap한다.
+Reliability experiment 전에 정상 운영의 measurement/recovery contract를 local에서 만든다.
 
-Azure Application은 final evidence에서 exact commit SHA를 사용한다.
+## P4A.1 — developer-probe
 
-### Argo-managed state
+별도 Go CLI 하나로 시작한다.
 
-- Forgejo
-- Azure-specific Forgejo values
-- namespaced Istio routing resources
-- workload ServiceAccount / SecretProviderClass
-- TLS Certificate/Issuer where namespaced
-- telemetry collector/config
+역할:
 
-### Forgejo Azure differences
+- single developer operation probe
+- controlled repeated operation
+- client-side retry mode
 
-Local contract와 동일하게 유지할 것:
+필요가 확인되기 전까지 별도 load-generator binary를 만들지 않는다.
 
-- app major/LTS track
-- single replica
-- Recreate
-- session=db
-- twoqueue cache
-- level queue
-- SSH disabled
-- Actions/Packages/migration disabled
+Core operation:
 
-Azure 차이:
+- clone/fetch
+- push
+- PR create/read
+- Issue create/read
 
-- HTTPS
-- managed PostgreSQL
-- Azure storage
-- Key Vault secret path
+### Measurement schema
 
-### Acceptance
+최소 기록:
 
-- Argo Synced/Healthy
-- exact targetRevision
-- HTTPS domain
-- Git push / clone/fetch / PR / Issue
-- direct Forgejo public bypass 없음
+- run/scenario identity
+- operation type
+- operation id
+- start/end timestamp
+- success/failure
+- end-to-end duration
+- operation attempt number
+- retry reason/error class
 
----
+Developer operation과 HTTP request를 같은 수로 취급하지 않는다.
 
-## P3.6 — Azure teardown and calibration
-
-첫 Azure environment는 final evidence environment가 아니다.
-
-목적:
-
-- resource sizing
-- latency baseline
-- node/DB/Forgejo headroom
-- managed Istio/KEDA/CSI compatibility
-- cost/runtime 확인
-- destroy workflow 검증
-
-Acceptance:
-
-- environment destroy 성공
-- environment RG에 예상 밖 유료 resource 없음
-- orphan public IP/disk/LB/monitoring resource 확인
-- actual runtime과 비용 기록
-
----
-
-# P4 — Operations Contract
-
-## P4.1 — Developer probe
-
-현재 shell E2E는 **correctness test**로 유지한다.
-
-SLI 측정을 위해 별도 `developer-probe` Go CLI를 만든다.
-
-한 tool이 다음 두 역할을 담당하도록 시작한다.
-
-- single-operation synthetic probe
-- controlled load/retry driver
-
-필요성이 생기기 전까지 별도 load-generator binary를 만들지 않는다.
+Metric label은 operation type/outcome 같은 low-cardinality 값만 사용한다. operation id는 metric label에 넣지 않는다.
 
 ### Identity
 
-Active Window 중에는 admin bootstrap API를 호출하지 않는다.
+Active Window 측정 중에는 admin bootstrap API를 호출하지 않는다.
 
 미리 준비한:
 
@@ -550,98 +483,46 @@ Active Window 중에는 admin bootstrap API를 호출하지 않는다.
 
 를 사용한다.
 
-### Measurement
+## P4A.2 — Local instrumentation contract
 
-최소 기록:
+Azure managed observability stack을 Local에 복제하지 않는다.
 
-- operation type
-- operation id
-- start/end timestamp
-- success/failure
-- end-to-end duration
-- operation attempt number
-- error class
+Local에서 먼저 고정할 것:
 
-Developer operation과 HTTP request를 같은 수로 취급하지 않는다.
+- metric names / units / labels
+- structured log schema
+- request/run correlation
+- ext-authz-sim OTel span boundary
+- Prometheus scrape endpoint
 
----
+Azure exporter/backend 연결은 P4B에서 수행한다.
 
-## P4.2 — Baseline and SLO
+## P4A.3 — Forgejo state/recovery mechanics
 
-SLI definition을 먼저 고정하고 threshold는 측정 후 정한다.
+### Session continuity
 
-Core SLI:
-
-- clone/fetch success + latency
-- push success + latency
-- PR create/read success + latency
-- Issue create/read success + latency
-
-측정 범위는 `Service Active Window`다.
-
-24/7 monthly availability를 주장하지 않는다.
-
----
-
-## P4.3 — Observability
-
-### Metrics
-
-- developer probe
-- Forgejo
-- Envoy/Istio
-- HAProxy when experiment installed
-- HPA/KEDA
-- Kubernetes/node
-- PostgreSQL
-
-→ Azure Managed Prometheus / Managed Grafana
-
-### Logs
-
-- Forgejo
-- Istio/Envoy
-- ext-authz-sim
-- HAProxy
-- Kubernetes event
-
-→ Log Analytics
-
-### Traces
-
-- mesh/proxy
-- ext-authz-sim
-
-→ OTel Collector → Application Insights
-
-Forgejo 내부 function-level tracing을 Core requirement로 두지 않는다.
-
----
-
-## P4.4 — Recovery and change safety
-
-### Restart/session
-
-- login
+- UI login/session 획득
 - Forgejo Pod replacement
 - session continuity 확인
-- PAT Git operation 재확인
+- PAT 기반 Git operation 재확인
 
-### Backup/restore
+### Backup mechanics
+
+Local에서 coordinated recovery 절차를 먼저 검증한다.
 
 ```text
 write boundary
 → flush queues
 → graceful stop
-→ PostgreSQL backup
+→ pg_dump
 → application-data backup
-→ secrets/version manifest
+→ secret/version manifest
 → fresh restore target
 → forgejo doctor check --all
 → developer E2E
 ```
 
-PITR만으로 전체 Forgejo backup이라고 표현하지 않는다.
+Azure PITR를 전체 Forgejo backup으로 표현하지 않는다.
 
 ### Upgrade/rollback
 
@@ -650,112 +531,300 @@ PITR만으로 전체 Forgejo backup이라고 표현하지 않는다.
 - upgrade
 - doctor + E2E
 - failure 시 compatible state restore + previous app version
-- 단순 image downgrade를 rollback이라고 부르지 않음
+
+단순 image downgrade를 rollback이라고 부르지 않는다.
 
 ---
 
-# P5 — Reliability Fixture
+# P5 — Local Reliability Fixture
+
+**Azure cost: 0**
+
+GitHub public RCA에서 추출한 failure effect를 local에서 먼저 재현 가능한 fixture로 만든다.
 
 ## P5.1 — ext-authz-sim
 
-직접 개발하는 server-side application은 이 작은 Go service 하나다.
+직접 개발하는 server-side service는 이 작은 Go service 하나다.
 
 최소 기능:
 
-- HTTP ext_authz check
+- Envoy HTTP external authorization response
 - health/readiness
 - Prometheus metrics
 - OTel tracing
 - deterministic latency/error control
-- bounded in-flight option for independent application overload tests
+- bounded in-flight option
+- runtime fault control
 
 DB를 추가하지 않는다.
 
+Check data path와 admin/control surface는 분리한다.
+
+예:
+
+- request-check port
+- admin/metrics port
+
+Admin/fault endpoint는 public ingress로 노출하지 않는다.
+
+## P5.2 — shared gate
+
+Experiment namespace의 기본 구조:
+
+```text
+Istio Gateway
+→ ext_authz provider
+→ HAProxy               # sidecar injection 없음
+→ ext-authz-sim Service
+→ Envoy inbound sidecar
+→ ext-authz-sim app
+```
+
+정상 original request는 authorization ALLOW 후 Forgejo로 간다.
+
+`ext-authz-sim`은 Forgejo native authentication/authorization을 대체하지 않는다.
+
+Git push body 전체를 ext-authz service로 보내지 않는다.
+
+## P5.3 — proxy capacity target
+
+의도적으로 제한하는 target은 **ext-authz-sim Pod의 inbound Envoy sidecar**다.
+
+Istio 1.30+ `Sidecar.inboundConnectionPool`에서 HTTP active-request limit을 구성한다.
+
+이렇게 해야 다음 관계를 연구할 수 있다.
+
+```text
+application CPU remains relatively low
+        ↓
+Envoy inbound active-request limit saturates
+        ↓
+request rejection
+        ↓
+application-container CPU HPA can miss the bottleneck
+```
+
+HAProxy는 별도의 queue/admission/rate-limiting layer다.
+
+## P5.4 — Local scenario acceptance
+
+필수:
+
+1. normal path E2E PASS
+2. shared gate healthy 상태 E2E PASS
+3. configured sidecar limit saturation
+4. Envoy rejection signal 관측
+5. retry 없음 / bounded retry operation attempt 차이 측정
+6. fixture 제거 후 normal path E2E PASS
+7. Forgejo/DB/node가 primary bottleneck이 아님
+
+Local에서 KEDA runtime이 꼭 필요하다고 증명되기 전까지 controller를 추가하지 않는다. KEDA manifest/schema와 metric contract는 준비하되, Azure managed KEDA integration은 P7에서 검증한다.
+
 ---
 
-## P5.2 — Shared-gate request path
+# P3B — Azure Provision and Compatibility Calibration
 
-```text
-Client
-→ Istio Ingress Gateway
-→ CUSTOM ext_authz check
-→ HAProxy
-→ ext-authz-sim Pod
-   → Envoy inbound sidecar
-   → ext-authz-sim app
-→ ALLOW / DENY
-→ Gateway
-→ original request
-→ Forgejo native auth/authorization
-```
+**유료 Azure session. 사용자 명시 승인 필수.**
 
-Ext-authz request에는 Git push body 전체를 포함하지 않는다.
+Local application/fixture contract가 안정된 뒤 처음 실제 Azure environment를 만든다.
 
-### Proxy capacity target
+## P3B.1 — Gate 1: bootstrap / foundation
 
-실험에서 의도적으로 제한하는 target은 **ext-authz-sim Pod의 inbound Envoy sidecar**다.
+실행 전:
 
-Istio `Sidecar.inboundConnectionPool`의 HTTP active-request limit을 사용한다.
+- current Azure pricing estimate
+- intended resource inventory
+- current subscription/region preflight
+- required Resource Provider registration
+- exact Git commit
+- user approval
 
-이렇게 해야:
+검증:
 
-- app CPU는 낮을 수 있음
-- inbound sidecar가 먼저 request를 거절함
-- 같은 ext-authz Deployment를 app-CPU HPA와 proxy-signal KEDA로 비교 가능
+- bootstrap apply
+- remote state actual read/write via authorized principal
+- GitHub OIDC login without client secret
+- foundation apply
+- DNS zone output
+- Key Vault RBAC allow/deny
+- no subscription-wide CI privilege
 
-HAProxy는 별도로 queue/admission/rate-limiting signal을 제공한다.
+## P3B.2 — Gate 2: environment calibration
+
+Environment를 짧게 provision한다.
+
+Preflight에서 확정:
+
+- AKS supported Kubernetes version
+- AKS managed Istio revision, 반드시 asm-1-30+
+- node SKU availability/quota
+- PostgreSQL SKU availability
+- expected Azure managed observability resources
+
+## P3B.3 — Managed capability preflight
+
+### Istio
+
+검증:
+
+1. selected revision 확인
+2. sidecar injection
+3. shared MeshConfig `extensionProviders`
+4. `CUSTOM AuthorizationPolicy`
+5. managed ingress
+6. `Sidecar.inboundConnectionPool`
+7. Envoy rejection metric
+8. policy 제거 후 normal path 복귀
+
+필수 기능이 blocked되거나 재현 불가능할 때만 self-managed Istio fallback ADR을 연다.
+
+`EnvoyFilter`를 Core 기본 해법으로 사용하지 않는다.
+
+### KEDA
+
+- managed KEDA controller 동작
+- Workload Identity path 준비
+- Azure Managed Prometheus scaler compatibility
+
+### Key Vault CSI
+
+- Workload Identity
+- secret mount/sync
+- Pod recreation 후 stable cryptographic material 유지
+
+## P3B.4 — Stable Azure platform
+
+- Argo CD Core explicit bootstrap
+- exact `targetRevision`
+- Forgejo Azure values
+- managed Istio routing
+- HTTPS
+- managed PostgreSQL
+- Key Vault secret path
+- direct Forgejo public bypass 없음
+
+Developer E2E 전체 통과가 acceptance다.
+
+## P3B.5 — Calibration / destroy
+
+첫 Azure environment의 목적은 final evidence가 아니다.
+
+측정:
+
+- baseline CPU/memory
+- node headroom
+- Forgejo headroom
+- DB connections/latency/headroom
+- base developer latency
+- actual runtime
+- actual cost signal
+
+이 세션에서 node SKU/count를 evidence profile 후보로 고정한다.
+
+작업 후 environment destroy하고 project-owned **ephemeral environment resource**가 남지 않았는지 inventory로 확인한다.
+
+Foundation/bootstrap은 이후 세션을 위해 의도적으로 남길 수 있다.
 
 ---
 
-## P5.3 — Fixture lifecycle
+# P4B — Azure Operations Verification
 
-정상 상태:
+**유료 Azure session.**
 
-```text
-Gateway → Forgejo
-```
+## P4B.1 — Managed observability
 
-실험 상태:
+Metrics:
 
-```text
-Gateway → shared gate check → Forgejo
-```
+- developer probe
+- Forgejo
+- Istio/Envoy
+- HPA/KEDA
+- Kubernetes/node
+- PostgreSQL
+- HAProxy/ext-authz when fixture active
+
+→ Azure Managed Prometheus / Managed Grafana
+
+Logs:
+
+→ Log Analytics
+
+Traces:
+
+- mesh/proxy
+- ext-authz-sim
+
+→ OTel Collector → Application Insights
+
+Forgejo internal function-level tracing은 Core requirement가 아니다.
+
+## P4B.2 — Baseline SLI/SLO
+
+Service Active Window에서 baseline을 측정한 후에만 threshold를 확정한다.
+
+Core SLI:
+
+- clone/fetch success + latency
+- push success + latency
+- PR create/read success + latency
+- Issue create/read success + latency
+
+24/7 monthly availability를 주장하지 않는다.
+
+## P4B.3 — Azure recovery drill
+
+비용을 줄이기 위해 별도 PostgreSQL server를 무조건 하나 더 만들지 않는다.
+
+가능하면:
+
+- 같은 Azure PostgreSQL server의 fresh restore database
+- fresh namespace/PVC
+
+를 사용해 application restore를 검증한다.
 
 Acceptance:
 
-- fixture install 전 E2E PASS
-- fixture healthy 상태 E2E PASS
-- fixture remove 후 E2E PASS
-- Forgejo native permission을 우회하지 않음
-- Argo stable resource를 직접 mutation하지 않음
+- DB + app-data + secret/version state 복원
+- `forgejo doctor check --all`
+- developer E2E
+- restore target cleanup
+
+PITR는 별도 DB recovery capability로 확인한다.
+
+## P4B.4 — Upgrade/rollback
+
+Azure에서 실제 state-aware upgrade/rollback contract를 한 번 검증한다.
 
 ---
 
 # P6 — Cascading Failure Investigation
 
-## 시나리오 순서
+Final evidence에 사용할 controlled incident를 만든다.
+
+Scenario progression:
 
 1. normal baseline
-2. shared gate healthy baseline
+2. healthy shared-gate baseline
 3. Envoy inbound active-request limit saturation
-4. application-CPU HPA scenario
-5. bounded client retry scenario
-6. retry에 따른 operation attempt 증가와 proxy pressure 관찰
+4. application-container CPU HPA scenario
+5. bounded retry scenario
+6. retry에 따른 attempt 증가와 proxy pressure 관찰
 
-## Valid run 조건
+Valid run은 다음 세 층을 함께 만족해야 한다.
 
-Developer impact:
+### Developer impact
 
-- operation success/latency
+- operation success
+- operation latency
 
-Mechanism:
+### Mechanism
 
 - operation attempts/retries
-- Envoy active request / circuit-breaker rejection
-- HAProxy queue/admission signal
+- Envoy active request/rejection
+- HAProxy queue/admission
 - scaling state
 
-Confounder guard:
+### Confounder guard
 
 - Forgejo
 - PostgreSQL
@@ -767,56 +836,60 @@ Node/DB/Forgejo가 먼저 포화되면 원하는 현상이 보여도 final evide
 
 # P7 — Mitigation and Recovery
 
-같은 fault/load boundary에서 변경 변수만 바꾼다.
+같은 workload/fault boundary에서 변경 변수만 바꾼다.
 
-## 비교
+비교:
 
 - no retry
 - bounded immediate retry
 - bounded exponential backoff + jitter
 - HAProxy rate limiting/admission/queue protection
-- application-CPU HPA
-- KEDA using verified Envoy saturation/concurrency signal
+- application-container CPU HPA
+- KEDA based on verified Envoy saturation/concurrency signal
 
-`retry budget`은 실제 shared budget/ratio mechanism을 구현한 경우에만 그 이름을 사용한다.
+`retry budget`은 실제 shared budget/ratio mechanism을 구현했을 때만 그 이름을 사용한다.
 
-## KEDA
+## KEDA path
 
 Azure:
 
 ```text
 Envoy metric
 → Azure Managed Prometheus
-→ KEDA Prometheus scaler
-→ ext-authz-sim Deployment replicas
+→ AKS managed KEDA Prometheus scaler
+→ ext-authz-sim Deployment
 ```
 
-Exact PromQL/threshold는 metric capture와 calibration 후 고정한다.
+KEDA identity에는 Azure Monitor Workspace를 읽을 수 있는 최소 role을 부여한다.
+
+Exact PromQL/threshold는 실제 metric capture/calibration 후 고정한다.
+
+HPA와 KEDA는 같은 scenario에서 동시에 Deployment를 제어하지 않는다.
 
 ## Recovery
 
 Demand를 중단하지 않는다.
 
 ```text
-steady load
+steady demand
 → overload
 → mitigation
 → pressure drains
 → developer SLI recovered
 ```
 
-Recovery criterion과 시간을 실제 측정한다.
+Recovery criterion/time을 실제 측정한다.
 
 ---
 
 # P8 — Critical / Bulk Traffic Isolation
 
-복잡한 scheduler를 만들지 않는다.
+복잡한 scheduler는 만들지 않는다.
 
 최소 구조:
 
 ```text
-shared authorization entry
+authorization check entry
       ↓
 HAProxy classification
       ├── critical capacity pool
@@ -825,52 +898,54 @@ HAProxy classification
 
 두 pool은 같은 ext-authz-sim image를 사용한다.
 
-Synthetic client가 명시적인 lab traffic-class metadata를 사용하도록 하고, 이를 GitHub 실제 production routing이라고 주장하지 않는다.
+Synthetic client는 명시적인 lab traffic-class metadata를 사용한다. 이를 GitHub 실제 production routing이라고 주장하지 않는다.
 
 Acceptance:
 
-- bulk overload 유도
-- bulk degradation/shedding 관찰
-- critical developer operation SLI 별도 측정
-- critical pool 보호 여부를 동일 workload로 비교
+- bulk overload
+- bulk degradation/shedding
+- critical developer operation 별도 측정
+- critical pool 보호 여부 비교
+
+Per-user fairness, dynamic priority queue, custom scheduler는 Core 범위 밖이다.
 
 ---
 
 # P9 — Regression Prevention and Final Evidence
 
-## Regression gate
+## P9.1 — Cost-free regression gate
 
-Local/CI에서 비용 없이 잡을 수 있는 failure class를 자동화한다.
+일반 PR에서 Azure를 띄우지 않는다.
+
+Local/CI에서 잡을 수 있는 failure class만 자동화한다.
 
 예:
 
-- operation-attempt amplification upper bound
-- unexpected Envoy overflow
-- stable E2E regression
-- scaling manifest/config regression
+- developer correctness regression
+- operation-attempt amplification bound
+- unexpected Envoy rejection in normal profile
+- scenario manifest/config regression
+- GitOps revision contract regression
 
-Azure-only behavior를 일반 PR마다 실행하지 않는다.
-
-## Final Azure evidence
+## P9.2 — Final Azure evidence
 
 조건:
 
 - exact source commit
 - clean source state
 - fixed node topology
-- component runtime version/digest
-- exact scenario config
+- runtime versions/digests
+- exact scenario configuration
 - normal preflight PASS
 - confounder guard
+- observation window
 - cleanup result
 
-비용과 variance를 고려해 final comparison은 기본적으로 **3 controlled repetitions**을 계획한다.
+Final comparison은 기본적으로 3 controlled repetitions을 계획한다.
 
 이를 통계적 유의성 주장으로 사용하지 않는다.
 
-## Published result
-
-최종 비교 축:
+Published comparison:
 
 ```text
 Baseline
@@ -879,131 +954,122 @@ Mitigated
 Isolated
 ```
 
-각 축에서:
+공통 축:
 
 - developer operation SLI
-- attempt amplification
+- operation-attempt amplification
 - Envoy rejection
 - HAProxy pressure
-- scaling
+- scaling state
 - Forgejo/DB/node health
 
-를 같은 measurement boundary로 제시한다.
+## P9.3 — Final teardown
 
----
+Project completion 후:
 
-# 6. Azure apply / 비용 gate
-
-## Gate 0 — Local / static
-
-- Azure cost: 0
-- Terraform validate
-- k3d
-- Argo integration
-- local reliability development
-
-자동 실행 가능.
-
-## Gate 1 — Bootstrap / Foundation
-
-사용자 명시 승인 필요.
-
-실행 전:
-
-- current Azure pricing estimate 작성
-- resource inventory 검토
-- expected persistent resources 확인
-- state/RBAC preflight
-
-Foundation은 필요 시 여러 Azure sessions 사이 유지할 수 있다.
-
-## Gate 2 — Environment calibration
-
-사용자 명시 승인 필요.
-
-목표는 장기 hosting이 아니라 sizing/compatibility/calibration이다.
-
-Environment는 필요한 session에만 만들고 작업 후 destroy한다.
-
-## Gate 3 — Final evidence window
-
-- exact commit freeze
-- fixed topology
-- scenario configuration freeze
-- merge/deploy 변화 금지
-- controlled repetitions
-
-## Gate 4 — Environment destroy
-
-- Terraform destroy
-- Kubernetes/cloud resource inventory
-- orphan disk/IP/LB 확인
-- monitoring resource 확인
-- actual cost/runtime 기록
-
-## Gate 5 — Project finalization
-
-프로젝트 완전 종료 시:
-
-- environment 없음 확인
-- 가비아 project subdomain delegation 제거
-- foundation identity/RBAC 제거
-- Key Vault soft-delete/purge 상태 확인
-- foundation destroy
-- Terraform state 보존 필요성 확인
-- bootstrap destroy
-- project-owned Azure resource final inventory
+1. environment destroy
+2. environment residual inventory
+3. 가비아 project subdomain delegation 제거
+4. foundation resource/identity/RBAC 제거
+5. Key Vault soft-delete/purge 상태 확인
+6. foundation destroy
+7. remote state 보존 필요성 최종 확인
+8. bootstrap destroy
+9. project-owned Azure resource final inventory
+10. final cost 확인
 
 `terraform destroy` 성공만으로 `zero residual`을 주장하지 않는다.
 
 ---
 
-# 7. Work unit 공통 Definition of Done
+# 7. Azure 비용 gate
 
-각 구현 PR은 가능한 경우 다음을 명시한다.
+## Gate 0 — Local/static
 
-## Prerequisite
+Azure cost: 0
 
-무엇이 먼저 완료되어야 하는가.
+자동 실행 가능.
 
-## Change
+- Terraform fmt/init/validate
+- k3d
+- Argo integration
+- developer probe
+- local recovery
+- local reliability fixture
 
-이번 PR이 실제로 추가/변경하는 capability.
+## Gate 1 — Bootstrap/foundation
 
-## Verification
+사용자 명시 승인 필요.
 
-실제로 실행한 command/test.
+실행 전:
 
-## Acceptance
+- pricing estimate
+- resource/RBAC inventory
+- region/subscription preflight
+- expected persistent resources
 
-무엇이 관측돼야 완료인가.
+## Gate 2 — Calibration environment
 
-## Cost impact
+사용자 명시 승인 필요.
 
-Azure resource를 만들거나 과금 경로를 바꾸는가.
+목적:
 
-## Cleanup / rollback
+- compatibility
+- sizing
+- baseline
+- cost
+- destroy workflow
 
-실패 시 되돌리는 방법.
+장기 hosting 용도가 아니다.
 
-## Evidence
+## Gate 3 — Final evidence window
 
-무엇을 machine-readable하게 남기는가.
+- exact commit freeze
+- fixed topology
+- scenario freeze
+- evidence window 중 merge/deploy 변화 금지
+- controlled repetitions
 
-작은 코드 변경에 이 항목을 형식적으로 모두 채우라는 의미는 아니다. Azure/experiment/recovery처럼 lifecycle이 중요한 work unit에서 사용한다.
+## Gate 4 — Environment destroy
+
+- Terraform destroy
+- cloud inventory
+- orphan disk/IP/LB 확인
+- monitoring resource 확인
+- actual runtime/cost 기록
+
+## Gate 5 — Project finalization
+
+Foundation/bootstrap/DNS delegation까지 정리한다.
 
 ---
 
-# 8. 구현 중 새 결정을 여는 기준
+# 8. Work unit Definition of Done
 
-다음 조건이 아니면 새 technology를 추가하지 않는다.
+Azure/experiment/recovery처럼 lifecycle이 중요한 PR은 다음을 답한다.
+
+- **Prerequisite** — 무엇이 먼저 완료돼야 하는가
+- **Change** — 이번 unit이 추가하는 capability
+- **Verification** — 실제 실행한 test/command
+- **Acceptance** — 완료 판정
+- **Cost impact** — Azure 비용/권한 변화
+- **Cleanup/Rollback** — 실패 시 복구
+- **Evidence** — 무엇을 남기는가
+
+작은 문서 수정에 이 형식을 억지로 적용하지 않는다.
+
+---
+
+# 9. 새 기술을 추가하는 조건
+
+다음 네 조건을 만족하지 않으면 새 technology/controller/service를 Core에 추가하지 않는다.
 
 1. 현재 설계로 해결할 수 없는 실제 문제가 관측됨
-2. 추가 component가 문제를 어떻게 해결하는지 설명 가능
-3. 새로운 failure domain과 운영비용을 검증할 방법이 있음
+2. 새 component가 문제를 어떻게 해결하는지 설명 가능
+3. 추가 failure domain/운영비용을 검증할 방법이 있음
 4. Core scope를 늘릴 가치가 있음
 
-따라서 다음은 기본적으로 Optional이다.
+기본 Optional:
 
 - Redis/Valkey
 - Forgejo multi-replica
@@ -1012,5 +1078,6 @@ Azure resource를 만들거나 과금 경로를 바꾸는가.
 - Elasticsearch/Meilisearch
 - multi-region
 - Backstage
-- service bus / Kafka / RabbitMQ
+- Kafka/RabbitMQ/Service Bus
 - complex priority scheduler
+- always-on public demo
