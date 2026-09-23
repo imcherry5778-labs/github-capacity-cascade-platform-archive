@@ -65,6 +65,11 @@ kubectl -n platform create secret generic forgejo-admin \
 kubectl apply -f platform/postgres/local.yaml
 kubectl -n platform rollout status statefulset/postgres --timeout=180s
 
+if [[ "${LOCAL_SKIP_FORGEJO:-false}" == "true" ]]; then
+  echo "local backing services: READY"
+  exit 0
+fi
+
 helm upgrade --install forgejo \
   oci://code.forgejo.org/forgejo-helm/forgejo \
   --version "$FORGEJO_CHART_VERSION" \

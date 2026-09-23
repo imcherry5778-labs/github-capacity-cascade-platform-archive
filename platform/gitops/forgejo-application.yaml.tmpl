@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: forgejo
+  namespace: argocd
+spec:
+  project: capacity-platform
+  sources:
+    - repoURL: code.forgejo.org/forgejo-helm
+      chart: forgejo
+      targetRevision: 17.1.1
+      helm:
+        releaseName: forgejo
+        valueFiles:
+          - $values/platform/forgejo/values-common.yaml
+          - $values/platform/forgejo/values-local.yaml
+    - repoURL: https://github.com/imcherry5778-labs/github-capacity-cascade-platform.git
+      targetRevision: __TARGET_REVISION__
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: platform
+  syncPolicy:
+    automated:
+      enabled: true
+      prune: false
+      selfHeal: true
+      allowEmpty: false
