@@ -1,0 +1,17 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: capacity-platform
+  namespace: argocd
+spec:
+  description: Stable platform resources managed by Argo CD
+  sourceRepos:
+    - https://github.com/imcherry5778-labs/github-capacity-cascade-platform.git
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: platform
+  namespaceResourceWhitelist:
+    - group: ""
+      kind: Service
+    - group: apps
+      kind: StatefulSet
