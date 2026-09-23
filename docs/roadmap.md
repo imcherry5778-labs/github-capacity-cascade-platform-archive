@@ -1,285 +1,258 @@
 # Roadmap
 
-## 1. 운영 원칙
+이 문서는 프로젝트의 milestone과 현재 상태를 요약한다.
 
-이 roadmap은 기술을 많이 넣는 순서가 아니라 **검증 가능한 작은 capability를 완성하는 순서**다.
+세부 dependency, acceptance, 비용 gate는 [Implementation Plan](implementation-plan.md)을 따른다.
 
-각 단계는 이전 단계의 정상 동작을 깨지 않아야 한다. Azure resource를 실제 생성하는 단계는 명시적 승인 없이 실행하지 않는다.
+## 상태
+
+| Milestone | 상태 |
+| --- | --- |
+| P0 Project Foundation | 완료 |
+| P1 Local Correctness Baseline | 완료 |
+| P2 GitOps Integration | 완료 |
+| P3A Azure IaC Specification | 진행 |
+| P4A Local Operations Contract | 대기 |
+| P5 Local Reliability Fixture | 대기 |
+| P3B Azure Calibration Environment | 대기 |
+| P4B Azure Operations Verification | 대기 |
+| P6 Cascading Failure Investigation | 대기 |
+| P7 Mitigation and Recovery | 대기 |
+| P8 Critical / Bulk Isolation | 대기 |
+| P9 Regression Prevention and Final Evidence | 대기 |
+
+---
 
 ## P0 — Project Foundation
 
-### 목표
-
-Repository contract와 구현 경계를 확정한다.
-
-### 결과물
+**완료**
 
 - Project Charter
 - Architecture
-- Conventions / Terminology
-- AGENTS.md
-- reviewer용 README
-- 기본 CI skeleton은 다음 단계에서 추가
-
-### 완료 조건
-
-- stable platform과 reliability fixture ownership이 분리돼 있음
-- Local/Azure functional parity의 의미가 문서화돼 있음
-- GitOps/experiment/evidence 경계가 모순 없이 설명됨
+- terminology / conventions
+- repository contract
+- Korean-first documentation policy
+- PR-gated change management
 
 ---
 
-## P1 — Local Developer Platform
+## P1 — Local Correctness Baseline
 
-### 목표
+**완료**
 
-k3d에서 실제 Forgejo developer journey를 먼저 정상화한다.
-
-### 구현
-
-- Forgejo v15 LTS exact patch pin
-- local PostgreSQL
+- k3d fresh-cluster lifecycle
+- Forgejo v15 LTS pinned baseline
+- local PostgreSQL fixture
 - persistent application data
-- Istio ingress
-- HTTPS 또는 local development에 적합한 TLS 경로
-- developer probe
-- 핵심 E2E
-  - clone/fetch
-  - push
-  - PR read/create
-  - Issue/API read/create
+- Git push
+- clone/fetch
+- PR create/read
+- Issue create/read
+- test fixture cleanup
 
-### 완료 조건
-
-- 같은 test fixture에서 반복 가능한 정상 E2E
-- Forgejo restart 후 state continuity 검증
-- platform 자체가 reliability experiment 없이 동작
+이 단계의 shell E2E는 correctness test다. SLI/load measurement는 P4A에서 별도 developer-probe로 만든다.
 
 ---
 
-## P2 — GitOps and Platform Tests
+## P2 — GitOps Integration
 
-### 목표
-
-Stable platform의 desired-state reconciliation을 검증한다.
-
-### 구현
+**완료**
 
 - Argo CD Core
-- stable platform Application/AppProject
-- local GitOps integration path
-- controlled drift test
-- infrastructure/integration test
-
-### 완료 조건
-
-- Git desired state와 cluster live state 차이를 탐지
-- self-heal 동작 검증
-- automatic prune은 사용하지 않음
-- experiment resource가 Argo scope 밖임을 검증
+- restricted AppProject
+- exact PR head revision
+- auto-sync / self-heal
+- automatic prune off
+- controlled live drift
+- post-heal developer E2E
 
 ---
 
-## P3 — Azure Foundation and Ephemeral Environment
+## P3A — Azure IaC Specification
 
-### 목표
+**진행 — Azure 비용 0**
 
-PAYG Azure에서 reproducible environment lifecycle을 만든다.
+실제 Azure resource를 만들기 전에 source/lifecycle을 완성한다.
 
-### Terraform
+- Terraform bootstrap boundary
+- remote state
+- GitHub OIDC identity
+- scoped Azure RBAC
+- foundation DNS / Key Vault
+- environment VNet / AKS / PostgreSQL / observability
+- AKS managed Istio / KEDA / Key Vault CSI source
+- Azure apply/destroy runbook
+- Terraform static validation
 
-- bootstrap
-  - remote state backend
-  - CI OIDC federation 최소 기반
-- foundation
-  - Azure DNS
-  - Key Vault
-  - shared identity/RBAC
-- environment
-  - AKS
-  - PostgreSQL
-  - ACR
-  - observability
-  - public ingress 관련 resource
+완료 조건:
 
-### Azure platform
-
-- Azure CNI Overlay
-- system/user node pool 분리
-- private PostgreSQL
-- Key Vault + Workload Identity + Secrets Store CSI
-- GitHub Actions manual apply/destroy
-- Argo CD bootstrap
-
-### 완료 조건
-
-- clean provision → deploy → E2E → destroy 가능
-- environment destroy 후 project-owned environment resource가 남지 않음
-- exact cost/runtime metadata 수집 가능
-- node/DB/Forgejo가 의도하지 않은 bottleneck이 아닌지 baseline 확인
+- 모든 root stack이 static validate 가능
+- Azure dependency graph가 명확함
+- subscription-wide CI privilege가 필요하지 않음
+- actual apply 전 필요한 값/preflight 목록이 고정됨
 
 ---
 
-## P4 — Operations Contract
+## P4A — Local Operations Contract
 
-### 목표
+**Azure 비용 0**
 
-장애 실험 전에 정상 서비스의 운영 계약을 만든다.
+정상 서비스를 측정하고 복구하는 계약을 local에서 먼저 만든다.
 
-### 구현
+- Go `developer-probe`
+- operation/attempt measurement schema
+- low-cardinality metrics
+- structured logs / correlation
+- Service Active Window 정의
+- session continuity
+- coordinated backup/restore mechanics
+- upgrade/rollback mechanics
 
-- developer-operation SLI
-- baseline 측정
-- baseline 근거를 바탕으로 SLO threshold 확정
-- alert/dashboard/query
-- backup runbook
-- actual restore drill
-- Forgejo doctor + developer E2E
-- upgrade/rollback test
-- cost/teardown runbook
-
-### 완료 조건
-
-- Service Active Window와 SLO 계산 범위가 명확함
-- backup이 아니라 recoverability를 실제로 검증함
-- upgrade 실패 시 단순 image downgrade가 아닌 state-aware rollback 절차가 있음
+SLO threshold는 아직 확정하지 않는다. Azure baseline을 측정한 뒤 결정한다.
 
 ---
 
-## P5 — Reliability Fixture
+## P5 — Local Reliability Fixture
 
-### 목표
+**Azure 비용 0**
 
-GitHub 공개 incident의 failure effect를 연구하기 위한 synthetic shared gate를 정상 platform과 분리해 추가한다.
-
-### 구현
-
-`experiments/fixtures/shared-gate/`
-
-- HAProxy
+- upstream Istio 1.30+ local profile
 - ext-authz-sim
-- Envoy request-concurrency constraint
-- temporary Istio authorization policy
-- experiment-specific HPA/KEDA ScaledObject
-- load/retry generator
+- HAProxy
+- shared-gate lifecycle
+- inbound Envoy request limit
+- application-container CPU HPA
+- no-retry / bounded retry
+- mechanism/confounder measurement
+- fixture cleanup
 
-### 완료 조건
+완료 조건:
 
-- experiment 미실행 시 request path에 synthetic gate가 없음
-- experiment preflight에서 normal E2E PASS
-- fixture 설치/제거가 stable platform desired state를 변경하지 않음
-- Forgejo native auth/permission을 우회하지 않음
+- normal E2E PASS
+- healthy gate E2E PASS
+- intentional Envoy saturation 관측
+- retry attempt 증가 측정
+- Forgejo/DB/node가 primary bottleneck이 아님
+- fixture 제거 후 normal E2E PASS
+
+---
+
+## P3B — Azure Calibration Environment
+
+**PAYG — 명시적 승인 후 실행**
+
+Local contract가 안정된 뒤 처음 Azure environment를 실제 생성한다.
+
+- bootstrap / foundation apply
+- GitHub OIDC
+- AKS + private PostgreSQL
+- managed Istio / KEDA / Key Vault CSI
+- Argo bootstrap
+- HTTPS / DNS / TLS
+- Azure developer E2E
+- resource sizing/headroom calibration
+- actual runtime/cost
+- destroy/residual inventory
+
+Managed Istio selected revision은 `asm-1-30` 이상이어야 하며 region/AKS compatibility를 실제 preflight에서 확인한다.
+
+---
+
+## P4B — Azure Operations Verification
+
+**PAYG — short-lived session**
+
+- Managed Prometheus / Grafana
+- Log Analytics
+- Application Insights
+- OTel integration
+- developer baseline
+- SLO threshold 확정
+- Azure backup/restore drill
+- upgrade/rollback drill
+- runbooks / alerts / dashboards
 
 ---
 
 ## P6 — Cascading Failure Investigation
 
-### 목표
+Controlled incident:
 
-사용자 영향 → 진단 → root cause 설명이 가능한 controlled incident를 만든다.
+1. normal baseline
+2. healthy shared gate
+3. Envoy inbound request-limit saturation
+4. application-container CPU HPA
+5. bounded retry
+6. retry amplification + HAProxy/Envoy pressure
 
-### 시나리오
+Evidence:
 
-1. Baseline
-2. Configured Envoy request limit saturation
-3. application-CPU HPA의 signal mismatch 관찰
-4. bounded retry를 통한 attempt 증가
-5. HAProxy/proxy pressure 관찰
-
-### Evidence layer
-
-- Developer impact
-- Failure mechanism
-- Confounder guard
-
-### 완료 조건
-
-- developer-operation SLI degradation이 관측됨
-- retry가 operation/request attempt를 증가시키는지 계층별로 분리 측정
-- Envoy official signal을 사용해 circuit-breaker rejection 확인
-- Forgejo/DB/node saturation이 primary cause가 아님을 확인
+- developer impact
+- mechanism
+- confounder guard
 
 ---
 
 ## P7 — Mitigation and Recovery
 
-### 목표
+동일한 fault/load boundary에서 비교한다.
 
-같은 fault/load 조건에서 완화책의 trade-off를 비교하고, 부하를 끄지 않은 상태에서 recovery를 검증한다.
+- no retry
+- immediate bounded retry
+- exponential backoff + jitter
+- HAProxy overload protection
+- application-container CPU HPA
+- Envoy metric → Managed Prometheus → managed KEDA
 
-### 비교 대상
-
-- bounded backoff + jitter
-- gateway/HAProxy overload protection
-- Envoy/proxy signal 기반 KEDA scaling
-- gradual recovery/ramp
-
-### 완료 조건
-
-- 동일한 measurement boundary 사용
-- operation attempt, developer SLI, proxy rejection, queue/pressure를 함께 비교
-- load를 중단하지 않고 recovered steady state 확인
-- 측정하지 않은 recovery improvement는 주장하지 않음
+부하를 끄지 않은 상태에서 recovery를 측정한다.
 
 ---
 
-## P8 — Critical Traffic Isolation
+## P8 — Critical / Bulk Isolation
 
-### 목표
+같은 ext-authz-sim image를 사용하되 capacity pool을 분리한다.
 
-interactive developer traffic과 automation/bulk traffic의 blast radius를 분리한다.
+- critical developer traffic
+- bulk/automation traffic
 
-### 방향
+Bulk overload 상황에서 critical developer SLI가 보호되는지 검증한다.
 
-- 같은 ext-authz-sim image를 사용하되 capacity pool을 분리
-- automation overload 시 bulk path의 degradation/shedding 허용
-- developer path 보호
-
-### 완료 조건
-
-- 두 traffic class의 결과를 별도 측정
-- 전체 평균 error rate가 아니라 developer-operation SLI 보호 여부로 판단
-- complex priority/fair queuing은 Core 범위 밖
+Complex priority scheduler/fair queuing은 Core 범위 밖이다.
 
 ---
 
 ## P9 — Regression Prevention and Final Evidence
 
-### 목표
-
-failure class가 다시 도입되는 것을 검증하고 포트폴리오 evidence를 고정한다.
-
-### 구현
-
-- capacity regression test/gate
-- exact Git revision freeze
-- exact component version/image digest 기록
-- Azure final paired repetitions
-- reviewed evidence set
+- cost-free local capacity regression gate
+- exact source commit freeze
+- fixed Azure topology
+- 3 controlled repetitions 기본 계획
+- Baseline / Cascade / Mitigated / Isolated 비교
+- reviewed evidence
 - incident/postmortem
-- portfolio README
-- final teardown
+- final portfolio README
+- environment destroy
+- project finalization
+  - Gabia delegation
+  - foundation
+  - identity/RBAC
+  - Key Vault soft-delete/purge state
+  - Terraform backend
+  - final Azure inventory/cost
 
-### 완료 조건
+---
 
-- final evidence claim이 source run/provenance로 추적 가능
-- valid run과 hypothesis support를 분리
-- final Azure runtime 제거
-- 가비아 DNS delegation을 포함한 project finalization 절차 문서화
-- 프로젝트 완료 후 지속적인 Azure 비용이 발생하지 않음
+## Optional
 
-## 2. Optional extensions
+Core 완료 후 실제 필요가 있을 때만 검토한다.
 
-Core 완료 후에만 검토한다.
-
-- Forgejo HA
 - Redis/Valkey
+- Forgejo HA
+- separate GitOps repo
 - Argo CD full UI/HA
-- separate GitOps configuration repository
 - multi-region / DR
 - Forgejo Actions
-- external search indexer
+- external search index
+- Backstage
 - richer traffic prioritization
 - always-on public demo
-
-Optional 항목을 Core 완료 조건으로 승격하려면 별도 ADR에서 필요성을 설명해야 한다.

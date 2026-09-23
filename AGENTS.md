@@ -8,6 +8,7 @@
 - 새 tool/controller/service는 실제 문제가 확인되기 전에 추가하지 않는다.
 - 빈 abstraction, 미래용 module, placeholder directory를 미리 만들지 않는다.
 - 구현 전에 관련 upstream 문서와 현재 pinned version의 실제 동작을 확인한다.
+- 구현 순서와 acceptance는 `docs/implementation-plan.md`를 따른다. 명세에 없는 새 capability를 먼저 구현하지 않는다.
 - 측정하지 않은 값을 결과처럼 작성하지 않는다.
 - GitHub의 비공개 architecture나 설정을 추정해 사실처럼 쓰지 않는다.
 
@@ -64,13 +65,23 @@ Rendered manifest는 CI에서 생성하고 검증한다.
 
 Argo CD가 소유하는 stable platform과 experiment runner가 소유하는 temporary resource를 섞지 않는다.
 
-Argo CD scope:
+Argo CD 기본 scope:
 
 - Forgejo
-- ingress/control plane baseline
-- TLS integration
-- telemetry integration
-- stable controller
+- namespaced Istio routing object
+- namespaced TLS object
+- workload ServiceAccount / SecretProviderClass
+- namespaced telemetry config
+
+Azure managed / explicit bootstrap scope:
+
+- AKS managed Istio/KEDA/Key Vault CSI
+- managed Istio ingress Deployment/Service
+- Argo CD Core 자체
+- cert-manager controller
+- shared Istio MeshConfig
+
+AppProject 제한이 Argo controller ServiceAccount 자체의 Kubernetes RBAC를 제한한다고 가정하지 않는다.
 
 Experiment scope:
 
@@ -112,6 +123,8 @@ Reliability experiment 전에 관련 정상 test가 통과해야 한다.
 
 - 실제 Azure provision/destroy는 명시적 사용자 승인 없이 실행하지 않는다.
 - PAYG 비용을 사용한다는 사실을 전제로 한다.
+- Azure 실제 provision 전에 cost/resource/RBAC preflight를 수행한다.
+- Local operations/reliability work를 완료하기 전 Azure를 장기 개발 환경처럼 유지하지 않는다.
 - evidence run에서 node SKU/count는 임의로 변경하지 않는다.
 - cost 절감을 위해 의도하지 않은 bottleneck을 만들지 않는다.
 - destroy 후 project-owned residual resource를 확인한다.
@@ -134,6 +147,8 @@ Reliability experiment 전에 관련 정상 test가 통과해야 한다.
 - exact resource request/limit
 - log/trace sampling rate
 - Forgejo exact patch/image digest
+- Azure AKS exact Kubernetes patch
+- Azure managed Istio exact revision (`asm-1-30` 이상 requirement는 유지)
 
 필요한 baseline 또는 upstream 검증 후 결정한다.
 

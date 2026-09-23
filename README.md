@@ -4,7 +4,7 @@
 
 GitHub의 2026년 8월 공개 장애 보고서에서 확인할 수 있는 **과부하 기반 cascading failure**의 failure class를 실제 Forgejo developer platform에 적용해, 사용자 영향부터 진단·완화·복구·재발 방지까지 검증하는 SRE / Platform Engineering 프로젝트다.
 
-> 현재 상태: **Project Foundation** — 구현 전 architecture / repository contract를 고정하는 단계
+> 현재 상태: **Local platform baseline / GitOps 검증 완료, Azure IaC specification 진행 중** — 아직 Azure resource는 생성하지 않음
 
 ## 왜 이 프로젝트를 만드는가
 
@@ -179,7 +179,9 @@ README / incident conclusion
 
 - [Project Charter](docs/charter.md) — 목표, Core 범위, 완료 기준
 - [Architecture](docs/architecture.md) — control plane과 ownership 경계
-- [Roadmap](docs/roadmap.md) — 구현 순서와 단계별 완료 조건
+- [Roadmap](docs/roadmap.md) — milestone과 현재 진행 상태
+- [Implementation Plan](docs/implementation-plan.md) — work unit, dependency, acceptance, Azure 비용 gate
+- [Production Readiness Boundary](docs/production-readiness.md) — production과 의도적으로 다른 선택
 - [Repository Conventions](docs/conventions.md) — 한국어 문서, commit/PR, naming 규칙
 - [Terminology](docs/terminology.md) — 공식 용어와 프로젝트 측정 용어의 경계
 - [AGENTS.md](AGENTS.md) — 구현 작업자가 따라야 할 repository contract
@@ -216,6 +218,24 @@ docs(architecture): 실험 fixture 소유권 경계 명시
 - Forgejo exact patch와 final image digest
 
 실제 구현과 측정을 통해 근거가 생겼을 때 ADR 또는 운영 문서에 고정한다.
+
+## 구현 순서
+
+PAYG Azure를 개발 환경처럼 계속 켜두지 않는다.
+
+```text
+Local correctness / GitOps                  DONE
+        ↓
+Azure IaC static specification              COST 0
+        ↓
+Local operations + reliability fixture      COST 0
+        ↓
+Azure calibration / operations              SHORT-LIVED PAYG
+        ↓
+Final incident / evidence
+```
+
+실제 Azure `apply` / `destroy`는 명시적 승인 없이 실행하지 않는다.
 
 ## 완료 후 운영 모델
 
