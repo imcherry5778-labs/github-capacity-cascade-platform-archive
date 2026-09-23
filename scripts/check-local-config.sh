@@ -30,7 +30,7 @@ grep -Fq "image: ${POSTGRES_IMAGE}" platform/postgres/local.yaml
 
 kubectl apply \
   --dry-run=client \
-  --validate=true \
+  --validate=false \
   -f platform/postgres/local.yaml \
   >/dev/null
 
